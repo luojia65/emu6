@@ -1,5 +1,4 @@
-use std::collections::HashMap;
-use core::ops::{Index, Range};
+use core::ops::Range;
 use core::ptr::copy_nonoverlapping;
 
 #[derive(Debug)]
@@ -12,25 +11,32 @@ impl<'a> Physical<'a> {
         Physical { sections: Vec::new() }
     }
 
-    pub fn insert_section_zeroed(&mut self, config: Config) {
+    pub fn push_zeroed(&mut self, config: Config) {
         if !self.check_overlap(&config) {
             panic!("Section region overlapped")
         }
         self.sections.push(Section::new_zeroed(config));
     }
 
-    pub fn insert_section_slice(&mut self, config: Config, slice: &'a [u8]) {
+    pub fn push_slice(&mut self, config: Config, slice: &'a [u8]) {
         if !self.check_overlap(&config) {
             panic!("Section region overlapped")
         }
         self.sections.push(Section::new_slice(config, slice));
     }
 
-    pub fn insert_section_slice_mut(&mut self, config: Config, slice: &'a mut [u8]) {
+    pub fn push_slice_mut(&mut self, config: Config, slice: &'a mut [u8]) {
         if !self.check_overlap(&config) {
             panic!("Section region overlapped")
         }
         self.sections.push(Section::new_slice_mut(config, slice));
+    }
+
+    pub fn push_owned(&mut self, config: Config, owned: Vec<u8>) {
+        if !self.check_overlap(&config) {
+            panic!("Section region overlapped")
+        }
+        self.sections.push(Section::new_owned(config, owned));
     }
 
     fn check_overlap(&self, new_config: &Config) -> bool {
@@ -90,25 +96,29 @@ impl<'a> Physical<'a> {
 }
 
 #[derive(Debug)]
-pub struct Section<'a> {
+struct Section<'a> {
     config: Config,
     inner: SectionInner<'a>,
 }
 
 impl<'a> Section<'a> {
-    pub fn new_zeroed(config: Config) -> Section<'a> {
+    fn new_zeroed(config: Config) -> Section<'a> {
         Section { config, inner: SectionInner::Owned(Vec::new()) }
     }
 
-    pub fn new_slice(config: Config, slice: &[u8]) -> Section {
+    fn new_slice(config: Config, slice: &[u8]) -> Section {
         if config.protect.contains(Protect::WRITE) {
             panic!("Cannot construct writeable buffer from read-only slices")
         }
         Section { config, inner: SectionInner::Borrowed(slice) }
     }
 
-    pub fn new_slice_mut(config: Config, slice: &mut [u8]) -> Section {
+    fn new_slice_mut(config: Config, slice: &mut [u8]) -> Section {
         Section { config, inner: SectionInner::BorrowedMut(slice) }
+    }
+
+    fn new_owned(config: Config, owned: Vec<u8>) -> Section<'a> {
+        Section { config, inner: SectionInner::Owned(owned) }
     }
 }
 
@@ -202,10 +212,10 @@ impl<'a> SectionInner<'a> {
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    range: Range<u64>,
-    align: u64,
-    protect: Protect,
-    endian: Endian,
+    pub range: Range<u64>,
+    pub align: u64,
+    pub protect: Protect,
+    pub endian: Endian,
 }
 
 #[derive(Clone, Copy, Debug)]
