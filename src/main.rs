@@ -4,6 +4,7 @@ mod riscv64;
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
 use mmu64::{Endian, Physical, Protect, Config};
+use std::sync::Arc;
 
 fn main() {
     let matches = App::new("emu6")
@@ -67,7 +68,6 @@ fn main() {
         }
         let config = Config {
             range: vaddr..(vaddr + mem_size),
-            align: 1,
             protect,
             endian,
         };
@@ -78,5 +78,6 @@ fn main() {
         }
     }
     println!("Memory: {:?}", mem);
+    let mem = Arc::new(mem);
     println!("First u16: 0x{:04X}", mem.read_u16(entry_addr).unwrap());
 }

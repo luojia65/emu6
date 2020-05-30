@@ -54,32 +54,41 @@ impl<'a> Physical<'a> {
 
 impl<'a> Physical<'a> {
     pub fn read_u8(&self, addr: u64) -> Result<u8> {
-        if let Some(section) = self.choose_section(addr) {
-            section.read_u8(addr)
-        } else {
-            Err(Error::NoMemory { addr })
-        }
+        self.read_any(addr, |section, addr| section.read_u8(addr), 
+            Protect::READ, |addr| Error::CannotRead { addr })
     }
 
     pub fn read_u16(&self, addr: u64) -> Result<u16> {
-        if let Some(section) = self.choose_section(addr) {
-            section.read_u16(addr)
-        } else {
-            Err(Error::NoMemory { addr })
-        }
+        self.read_any(addr, |section, addr| section.read_u16(addr), 
+            Protect::READ, |addr| Error::CannotRead { addr })
     }
 
     pub fn read_u32(&self, addr: u64) -> Result<u32> {
-        if let Some(section) = self.choose_section(addr) {
-            section.read_u32(addr)
-        } else {
-            Err(Error::NoMemory { addr })
-        }
+        self.read_any(addr, |section, addr| section.read_u32(addr), 
+            Protect::READ, |addr| Error::CannotRead { addr })
     }
 
     pub fn read_u64(&self, addr: u64) -> Result<u64> {
+        self.read_any(addr, |section, addr| section.read_u64(addr), 
+            Protect::READ, |addr| Error::CannotRead { addr })
+    }
+
+    pub fn fetch_ins_u16(&self, addr: u64) -> Result<u16> {
+        self.read_any(addr, |section, addr| section.read_u16(addr), 
+            Protect::EXECUTE, |addr| Error::CannotExecute { addr })
+    }
+
+    fn read_any<T, F, E>(&self, addr: u64, f: F, token: Protect, e: E) -> Result<T> 
+    where 
+        F: Fn(&Section, u64) -> Result<T>,
+        E: Fn(u64) -> Error
+    {
         if let Some(section) = self.choose_section(addr) {
-            section.read_u64(addr)
+            if section.config.protect.contains(token) {
+                f(section, addr)
+            } else {
+                Err(e(addr))
+            }
         } else {
             Err(Error::NoMemory { addr })
         }
@@ -213,7 +222,6 @@ impl<'a> SectionInner<'a> {
 #[derive(Clone, Debug)]
 pub struct Config {
     pub range: Range<u64>,
-    pub align: u64,
     pub protect: Protect,
     pub endian: Endian,
 }
@@ -234,7 +242,6 @@ bitflags::bitflags! {
 
 #[derive(Clone, Debug)]
 pub enum Error {
-    Misaligned { addr: u64, min_align: u64 },
     CannotRead { addr: u64 },
     CannotWrite { addr: u64 },
     CannotExecute { addr: u64 },
