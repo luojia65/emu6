@@ -77,7 +77,8 @@ fn main() {
             mem.push_slice(config, data);
         }
     }
-    println!("Memory: {:?}", mem);
+    // println!("Memory: {:?}", mem);
     let mem = Arc::new(mem);
-    println!("First u16: 0x{:04X}", mem.read_u16(entry_addr).unwrap());
+    let mut fetch = riscv64::Fetch { inner: Arc::clone(&mem), pc: entry_addr };
+    println!("{:?}", fetch.next_instruction().unwrap());
 }
