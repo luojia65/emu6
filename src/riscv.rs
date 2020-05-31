@@ -96,12 +96,12 @@ pub enum FetchError {
 }
 
 fn resolve_u16(ins: u16) -> core::result::Result<Instruction, ()> {
-    use {Instruction::*, self::RVC::*};
+    use self::RVC::*;
     todo!()
 }
 
 fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
-    use {Instruction::*, self::RV32I::*, self::RV64I::*};
+    use {self::RV32I::*, self::RV64I::*};
     let opcode = ins & 0b111_1111;
     let rd = ((ins >> 7) & 0b1_1111) as u8;
     let rs1 = ((ins >> 15) & 0b1_1111) as u8;
@@ -458,6 +458,53 @@ impl<'a> Execute<'a> {
                     *pc_nxt = u64_add_i32(pc, b.imm_b)
                 }
             },
+            RV32I(Bne(b)) => {
+                if self.reg_r(b.rs1) != self.reg_r(b.rs2) {
+                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                }
+            },
+            RV32I(Blt(b)) => {
+                if self.reg_r_i64(b.rs1) < self.reg_r_i64(b.rs2) {
+                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                }
+            },
+            RV32I(Bge(b)) => {
+                if self.reg_r_i64(b.rs1) >= self.reg_r_i64(b.rs2) {
+                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                }
+            },
+            RV32I(Bltu(b)) => {
+                if self.reg_r(b.rs1) < self.reg_r(b.rs2) {
+                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                }
+            },
+            RV32I(Bgeu(b)) => {
+                if self.reg_r(b.rs1) >= self.reg_r(b.rs2) {
+                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                }
+            },
+            RV32I(Lb(i)) => self.reg_w(i.rd, sext_u8_u64(
+                self.data_mem.read_u8(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?)),
+            RV32I(Lh(i)) => self.reg_w(i.rd, sext_u16_u64(
+                self.data_mem.read_u16(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?)),
+            RV32I(Lw(i)) => self.reg_w(i.rd, sext_u32_u64(
+                self.data_mem.read_u32(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?)),
+            RV32I(Lbu(i)) => self.reg_w(i.rd, 
+                self.data_mem.read_u8(u64_add_i32(self.reg_r(i.rs1), i.imm_i))? as u64),
+            RV32I(Lhu(i)) => self.reg_w(i.rd, 
+                self.data_mem.read_u16(u64_add_i32(self.reg_r(i.rs1), i.imm_i))? as u64),
+            RV32I(Sb(s)) => self.data_mem.write_u8(
+                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
+                lowbit_u64_u8(self.reg_r(s.rs2) )
+            )?,
+            RV32I(Sh(s)) => self.data_mem.write_u16(
+                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
+                lowbit_u64_u16(self.reg_r(s.rs2) )
+            )?,
+            RV32I(Sw(s)) => self.data_mem.write_u32(
+                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
+                lowbit_u64_u32(self.reg_r(s.rs2) )
+            )?,
             RV64I(Ld(i)) => self.reg_w(i.rd, 
                 self.data_mem.read_u64(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?),
             _ => panic!("todo"),
@@ -473,13 +520,37 @@ impl<'a> Execute<'a> {
         self.regs.x[index as usize]
     }
 
+    fn reg_r_i64(&self, index: u8) -> i64 {
+        i64::from_ne_bytes(u64::to_ne_bytes(self.regs.x[index as usize]))
+    }
+
     fn reg_w(&mut self, index: u8, data: u64) {
         self.regs.x[index as usize] = data
     }
 }
 
+fn sext_u8_u64(i: u8) -> u64 {
+    (i as u64) | if (i >> 7) != 0 { 0xFFFFFFFFFFFFFF00 } else { 0 }
+}
+
+fn sext_u16_u64(i: u16) -> u64 {
+    (i as u64) | if (i >> 15) != 0 { 0xFFFFFFFFFFFF0000 } else { 0 }
+}
+
 fn sext_u32_u64(i: u32) -> u64 {
     (i as u64) | if (i >> 31) != 0 { 0xFFFFFFFF00000000 } else { 0 }
+}
+
+fn lowbit_u64_u8(i: u64) -> u8 {
+    (i & 0xFF) as u8
+}
+
+fn lowbit_u64_u16(i: u64) -> u16 {
+    (i & 0xFFFF) as u16
+}
+
+fn lowbit_u64_u32(i: u64) -> u32 {
+    (i & 0xFFFFFFFF) as u32
 }
 
 fn u64_add_i32(base: u64, off: i32) -> u64 {
