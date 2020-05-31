@@ -11,6 +11,10 @@ const OPCODE_JALR: u32 =     0b110_0111;
 const OPCODE_JAL: u32 =      0b110_1111;
 const OPCODE_SYSTEM: u32 =   0b111_0011; 
 
+const OPCODE_C0: u16 =  0b00;
+const OPCODE_C1: u16 =  0b01;
+const OPCODE_C2: u16 =  0b10;
+
 const FUNCT3_LOAD_LB: u8 = 0b000;
 const FUNCT3_LOAD_LH: u8 = 0b001;
 const FUNCT3_LOAD_LW: u8 = 0b010;
@@ -50,37 +54,38 @@ use crate::mmu64::Physical;
 use crate::mmu64::Result;
 
 pub struct Fetch<'a> {
-    pub mem: &'a Physical<'a>,
-    pub pc: u64
+    pub mem: &'a Physical<'a>
 }
 
 impl<'a> Fetch<'a> {
-    pub fn new(mem: &'a Physical<'a>, pc: u64) -> Self {
-        Fetch { mem, pc }
+    pub fn new(mem: &'a Physical<'a>) -> Self {
+        Fetch { mem }
     }
 
-    pub fn next_instruction(&mut self) -> Result<Instruction> {
-        let ins = self.next_u16()?;
+    pub fn next_instruction(&mut self, mut pc: u64) -> Result<(Instruction, u64)> {
+        let ins = self.next_u16(&mut pc)?;
         if ins & 0b11 != 0b11 {
             println!("16 bit");
+            return Ok((resolve_u16(ins), pc));
         }
         if ins & 0b11100 != 0b11100 {
-            let ins = (ins as u32) + ((self.next_u16()? as u32) << 16);
+            let ins = (ins as u32) + ((self.next_u16(&mut pc)? as u32) << 16);
             // println!("32 bit {:08X}", ins);
-            return Ok(resolve_u32(ins));
+            return Ok((resolve_u32(ins), pc));
         }
         todo!()
     }
 
-    pub fn pc(&self) -> u64 {
-        self.pc
-    }
-
-    fn next_u16(&mut self) -> Result<u16> {
-        let ans = self.mem.fetch_ins_u16(self.pc);
-        self.pc += 2;
+    fn next_u16(&mut self, pc: &mut u64) -> Result<u16> {
+        let ans = self.mem.fetch_ins_u16(*pc);
+        *pc += 2;
         ans
     }
+}
+
+fn resolve_u16(ins: u16) -> Instruction {
+    use {Instruction::*, self::RVC::*};
+    todo!()
 }
 
 fn resolve_u32(ins: u32) -> Instruction {
@@ -204,6 +209,7 @@ fn resolve_u32(ins: u32) -> Instruction {
 pub enum Instruction {
     RV32I(RV32I),
     RV64I(RV64I),
+    RVC(RVC),
 }
 
 impl From<RV32I> for Instruction {
@@ -215,6 +221,12 @@ impl From<RV32I> for Instruction {
 impl From<RV64I> for Instruction {
     fn from(src: RV64I) -> Instruction {
         Instruction::RV64I(src)
+    }
+}
+
+impl From<RVC> for Instruction {
+    fn from(src: RVC) -> Instruction {
+        Instruction::RVC(src)
     }
 }
 
@@ -268,6 +280,7 @@ pub enum RV64I {
     Lwu(IType),
     Ld(IType),
     Sd(SType),
+    // todo!
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -313,6 +326,76 @@ pub struct RType {
     rs2: u8,
     funct3: u8,
     funct7: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum RVC {
+    
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CRType {
+    rdrs1: u8,
+    rs2: u8,
+    funct4: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CIType {
+    rdrs1: u8,
+    funct3: u8,
+    imm_ci: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CSSType {
+    rdrs1: u8,
+    funct3: u8,
+    imm_css: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CIWType {
+    rd: u8,
+    funct3: u8,
+    imm_ciw: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CLType {
+    rd: u8,
+    rs1: u8,
+    funct3: u8,
+    imm_cl: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CSType {
+    rs1: u8,
+    rs2: u8,
+    funct3: u8,
+    imm_cs: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CAType {
+    rdrs1: u8,
+    rs2: u8,
+    funct2: u8,
+    funct6: u8,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CBType {
+    rs1: u8,
+    funct3: u8,
+    off: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CJType {
+    funct3: u8,
+    target: u32,
 }
 
 #[derive(Debug)]

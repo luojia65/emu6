@@ -1,10 +1,10 @@
 mod mmu64;
-mod riscv64;
+mod riscv;
 
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
 use mmu64::{Endian, Physical, Protect, Config};
-use riscv64::{Fetch, Execute};
+use riscv::{Fetch, Execute};
 
 fn main() {
     let matches = App::new("emu6")
@@ -78,13 +78,14 @@ fn main() {
         }
     }
     let mem = &mut mem as *mut _; // todo!
-    let mut fetch = Fetch::new(unsafe { &*mem }, entry_addr);
+    let mut fetch = Fetch::new(unsafe { &*mem });
     let mut exec = Execute::new(unsafe { &mut *mem });
+    let mut pc = entry_addr;
     for _ in 0..10 {
-        let pc = fetch.pc();
-        let ins = fetch.next_instruction().unwrap();
+        let (ins, pc_nxt) = fetch.next_instruction(pc).unwrap();
         println!("{:?}", ins);
         exec.execute(ins, pc).unwrap();
         exec.dump_regs();
+        pc = pc_nxt;
     }
 }
