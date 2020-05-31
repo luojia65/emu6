@@ -83,9 +83,9 @@ fn main() {
     let mut exec = Execute::new(unsafe { &mut *mem });
     let mut pc = entry_addr;
     for _ in 0..10 {
-        let (ins, mut pc_nxt) = fetch.next_instruction(pc)?;
+        let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
         println!("{:?}", ins);
-        exec.execute(ins, pc, &mut pc_nxt).expect("EXEC")?;
+        exec.execute(ins, pc, &mut pc_nxt).unwrap();
         exec.dump_regs();
         pc = pc_nxt;
     }
