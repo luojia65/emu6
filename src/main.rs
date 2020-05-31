@@ -47,6 +47,11 @@ fn main() {
         header::Data::LittleEndian => Endian::Little,
         _ => panic!("invalid endian")
     };
+    let xlen = match elf_file.header.pt1.class.as_class() {
+        header::Class::ThirtyTwo => Xlen::X32,
+        header::Class::SixtyFour => Xlen::X64,
+        _ => panic!("unsupported xlen")
+    }
     for program_header in elf_file.program_iter() {
         if program_header.get_type() != Ok(program::Type::Load) {
             continue;
@@ -79,8 +84,8 @@ fn main() {
         }
     }
     let mem = &mut mem as *mut _; // todo!
-    let mut fetch = Fetch::new(unsafe { &*mem }, Xlen::X64); // todo!
-    let mut exec = Execute::new(unsafe { &mut *mem }, Xlen::X64);
+    let mut fetch = Fetch::new(unsafe { &*mem }, xlen); 
+    let mut exec = Execute::new(unsafe { &mut *mem }, xlen);
     let mut pc = entry_addr;
     for _ in 0..10 {
         let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
