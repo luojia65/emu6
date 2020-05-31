@@ -1,5 +1,7 @@
 use core::ops::Range;
 use core::ptr::copy_nonoverlapping;
+use crate::error::Result;
+use thiserror::Error;
 
 #[derive(Debug)]
 pub struct Physical<'a> {
@@ -55,42 +57,42 @@ impl<'a> Physical<'a> {
 impl<'a> Physical<'a> {
     pub fn read_u8(&self, addr: u64) -> Result<u8> {
         self.read_any(addr, |section, addr| section.read_u8(addr), 
-            Protect::READ, |addr| Error::CannotRead { addr })
+            Protect::READ, |addr| MemError::CannotRead { addr })
     }
 
     pub fn read_u16(&self, addr: u64) -> Result<u16> {
         self.read_any(addr, |section, addr| section.read_u16(addr), 
-            Protect::READ, |addr| Error::CannotRead { addr })
+            Protect::READ, |addr| MemError::CannotRead { addr })
     }
 
     pub fn read_u32(&self, addr: u64) -> Result<u32> {
         self.read_any(addr, |section, addr| section.read_u32(addr), 
-            Protect::READ, |addr| Error::CannotRead { addr })
+            Protect::READ, |addr| MemError::CannotRead { addr })
     }
 
     pub fn read_u64(&self, addr: u64) -> Result<u64> {
         self.read_any(addr, |section, addr| section.read_u64(addr), 
-            Protect::READ, |addr| Error::CannotRead { addr })
+            Protect::READ, |addr| MemError::CannotRead { addr })
     }
 
     pub fn fetch_ins_u16(&self, addr: u64) -> Result<u16> {
         self.read_any(addr, |section, addr| section.read_u16(addr), 
-            Protect::EXECUTE, |addr| Error::CannotExecute { addr })
+            Protect::EXECUTE, |addr| MemError::CannotExecute { addr })
     }
 
     fn read_any<T, F, E>(&self, addr: u64, f: F, token: Protect, e: E) -> Result<T> 
     where 
         F: Fn(&Section, u64) -> Result<T>,
-        E: Fn(u64) -> Error
+        E: Fn(u64) -> MemError
     {
         if let Some(section) = self.choose_section(addr) {
             if section.config.protect.contains(token) {
                 f(section, addr)
             } else {
-                Err(e(addr))
+                Err(e(addr))?
             }
         } else {
-            Err(Error::NoMemory { addr })
+            Err(MemError::NoMemory { addr })?
         }
     }
 
@@ -158,14 +160,14 @@ impl<'a> Section<'a> {
 
     fn get_underlying_buf_offset(&self, addr: u64) -> Result<u64> {
         if !self.config.range.contains(&addr) {
-            return Err(Error::NoMemory { addr })
+            return Err(MemError::NoMemory { addr })?
         }
         Ok(addr - self.config.range.start) // will not underflow
     }
 
     fn check_read(&self, addr: u64) -> Result<()> {
         if !self.config.protect.contains(Protect::READ) {
-            return Err(Error::CannotRead { addr })
+            return Err(MemError::CannotRead { addr })?
         }
         Ok(())
     }
@@ -240,12 +242,14 @@ bitflags::bitflags! {
     }
 }
 
-#[derive(Clone, Debug)]
-pub enum Error {
+#[derive(Error, Clone, Debug)]
+pub enum MemError {
+    #[error("Memory address 0x{addr:016X} cannot be read")]
     CannotRead { addr: u64 },
+    #[error("Memory address 0x{addr:016X} cannot be written")]
     CannotWrite { addr: u64 },
+    #[error("Memory address 0x{addr:016X} cannot be executed")]
     CannotExecute { addr: u64 },
+    #[error("No memory bound for address 0x{addr:016X}")]
     NoMemory { addr: u64 },
 }
-
-pub type Result<T> = core::result::Result<T, Error>;

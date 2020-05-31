@@ -1,9 +1,10 @@
-mod mmu64;
+mod mem64;
 mod riscv;
+mod error;
 
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
-use mmu64::{Endian, Physical, Protect, Config};
+use mem64::{Endian, Physical, Protect, Config};
 use riscv::{Fetch, Execute};
 
 fn main() {
@@ -82,9 +83,9 @@ fn main() {
     let mut exec = Execute::new(unsafe { &mut *mem });
     let mut pc = entry_addr;
     for _ in 0..10 {
-        let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
+        let (ins, mut pc_nxt) = fetch.next_instruction(pc)?;
         println!("{:?}", ins);
-        exec.execute(ins, pc, &mut pc_nxt).unwrap();
+        exec.execute(ins, pc, &mut pc_nxt).expect("EXEC")?;
         exec.dump_regs();
         pc = pc_nxt;
     }

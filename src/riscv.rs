@@ -50,8 +50,9 @@ const FUNCT7_ALU_SRA: u8 = 0b010_0000;
 const FUNCT7_ALU_ADD: u8 = 0b000_0000;
 const FUNCT7_ALU_SUB: u8 = 0b010_0000;
 
-use crate::mmu64::Physical;
-use crate::mmu64::Result;
+use crate::mem64::Physical;
+use crate::error::Result;
+use thiserror::Error;
 
 pub struct Fetch<'a> {
     pub mem: &'a Physical<'a>
@@ -63,17 +64,18 @@ impl<'a> Fetch<'a> {
     }
 
     pub fn next_instruction(&mut self, mut pc: u64) -> Result<(Instruction, u64)> {
+        let addr = pc;
         let ins = self.next_u16(&mut pc)?;
         if ins & 0b11 != 0b11 {
-            println!("16 bit");
-            return Ok((resolve_u16(ins), pc));
+            return Ok((resolve_u16(ins).map_err(|_| 
+                FetchError::IllegalInstruction16 { addr, ins })?, pc));
         }
         if ins & 0b11100 != 0b11100 {
             let ins = (ins as u32) + ((self.next_u16(&mut pc)? as u32) << 16);
-            // println!("32 bit {:08X}", ins);
-            return Ok((resolve_u32(ins), pc));
+            return Ok((resolve_u32(ins).map_err(|_| 
+                FetchError::IllegalInstruction32 { addr, ins })?, pc));
         }
-        todo!()
+        Err(FetchError::InstructionLength { addr })?
     }
 
     fn next_u16(&mut self, pc: &mut u64) -> Result<u16> {
@@ -83,12 +85,22 @@ impl<'a> Fetch<'a> {
     }
 }
 
-fn resolve_u16(ins: u16) -> Instruction {
+#[derive(Error, Clone, Debug)]
+pub enum FetchError {
+    #[error("Illegal 16-bit instruction 0x{ins:04X} at address: 0x{addr:016X} ")]
+    IllegalInstruction16 { addr: u64, ins: u16 },
+    #[error("Illegal 32-bit instruction 0x{ins:08X} at address: 0x{addr:016X} ")]
+    IllegalInstruction32 { addr: u64, ins: u32 },
+    #[error("Illegal instruction at address: 0x{addr:016X}; length over 32-bit is not supported")]
+    InstructionLength { addr: u64 },
+}
+
+fn resolve_u16(ins: u16) -> core::result::Result<Instruction, ()> {
     use {Instruction::*, self::RVC::*};
     todo!()
 }
 
-fn resolve_u32(ins: u32) -> Instruction {
+fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
     use {Instruction::*, self::RV32I::*, self::RV64I::*};
     let opcode = ins & 0b111_1111;
     let rd = ((ins >> 7) & 0b1_1111) as u8;
@@ -136,7 +148,7 @@ fn resolve_u32(ins: u32) -> Instruction {
     let i_type = IType { rd, rs1, funct3, imm_i };
     let s_type = SType { rs1, rs2, funct3, imm_s };
     let r_type = RType { rd, rs1, rs2, funct3, funct7 };
-    match opcode {
+    let ans = match opcode {
         OPCODE_LUI => Lui(u_type).into(),
         OPCODE_AUIPC => Auipc(u_type).into(),
         OPCODE_JAL => Jal(j_type).into(),
@@ -148,7 +160,7 @@ fn resolve_u32(ins: u32) -> Instruction {
             FUNCT3_BRANCH_BGE => Bge(b_type).into(),
             FUNCT3_BRANCH_BLTU => Bltu(b_type).into(),
             FUNCT3_BRANCH_BGEU => Bgeu(b_type).into(),
-            _ => panic!("EILL")
+            _ => Err(())?
         },
         OPCODE_LOAD => match funct3 {
             FUNCT3_LOAD_LB => Lb(i_type).into(),
@@ -158,7 +170,7 @@ fn resolve_u32(ins: u32) -> Instruction {
             FUNCT3_LOAD_LBU => Lbu(i_type).into(),
             FUNCT3_LOAD_LHU => Lhu(i_type).into(),
             FUNCT3_LOAD_LWU => Lwu(i_type).into(),
-            _ => panic!("EILL")
+            _ => Err(())?
         },
         OPCODE_STORE => match funct3 {
             FUNCT3_STORE_SB => Sb(s_type).into(),
@@ -178,7 +190,7 @@ fn resolve_u32(ins: u32) -> Instruction {
             FUNCT3_ALU_SRL_SRA => match funct7 {
                 FUNCT7_ALU_SRL => Srli(i_type).into(),
                 FUNCT7_ALU_SRA => Srai(i_type).into(),
-                _ => panic!("EILL")
+                _ => Err(())?
             },
             _ => unreachable!()
         },
@@ -186,7 +198,7 @@ fn resolve_u32(ins: u32) -> Instruction {
             FUNCT3_ALU_ADD_SUB => match funct7 {
                 FUNCT7_ALU_ADD => Add(r_type).into(),
                 FUNCT7_ALU_SUB => Sub(r_type).into(),
-                _ => panic!("EILL")
+                _ => Err(())?
             },
             FUNCT3_ALU_SLT => Slt(r_type).into(),
             FUNCT3_ALU_SLTU => Sltu(r_type).into(),
@@ -197,12 +209,13 @@ fn resolve_u32(ins: u32) -> Instruction {
             FUNCT3_ALU_SRL_SRA => match funct7 {
                 FUNCT7_ALU_SRL => Srl(r_type).into(),
                 FUNCT7_ALU_SRA => Sra(r_type).into(),
-                _ => panic!("EILL")
+                _ => Err(())?
             },
             _ => unreachable!()
         },
-        _ => panic!("EILL")
-    }
+        _ => Err(())?
+    };
+    Ok(ans)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -402,7 +415,6 @@ pub struct CJType {
 pub struct IntRegister {
     regs: [u64; 32],
 }
-
 
 // pub struct Csr {
 //     inner: [u64; 4096],
