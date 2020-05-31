@@ -453,13 +453,15 @@ pub struct IntRegister {
 pub struct Execute<'a> {
     data_mem: &'a mut Physical<'a>,
     regs: Box<IntRegister>,
+    xlen: Xlen,
 }
 
 impl<'a> Execute<'a> {
-    pub fn new(data_mem: &'a mut Physical<'a>) -> Execute<'a> {
+    pub fn new(data_mem: &'a mut Physical<'a>, xlen: Xlen) -> Execute<'a> {
         Execute { 
             data_mem,
-            regs: Box::new(IntRegister { x: [0u64; 32] }) 
+            regs: Box::new(IntRegister { x: [0u64; 32] }),
+            xlen
         }
     }
 
@@ -520,15 +522,15 @@ impl<'a> Execute<'a> {
                 self.data_mem.read_u16(u64_add_i32(self.reg_r(i.rs1), i.imm_i))? as u64),
             RV32I(Sb(s)) => self.data_mem.write_u8(
                 u64_add_i32(self.reg_r(s.rs1), s.imm_s),
-                lowbit_u64_u8(self.reg_r(s.rs2) )
+                lowbit_u64_u8(self.reg_r(s.rs2))
             )?,
             RV32I(Sh(s)) => self.data_mem.write_u16(
                 u64_add_i32(self.reg_r(s.rs1), s.imm_s),
-                lowbit_u64_u16(self.reg_r(s.rs2) )
+                lowbit_u64_u16(self.reg_r(s.rs2))
             )?,
             RV32I(Sw(s)) => self.data_mem.write_u32(
                 u64_add_i32(self.reg_r(s.rs1), s.imm_s),
-                lowbit_u64_u32(self.reg_r(s.rs2) )
+                lowbit_u64_u32(self.reg_r(s.rs2))
             )?,
             RV32I(Addi(i)) => 
                 self.reg_w(i.rd, u64_add_i32(self.reg_r(i.rs1), i.imm_i)),
@@ -575,6 +577,34 @@ impl<'a> Execute<'a> {
                 let shamt = shamt_from_reg_xlen32(self.reg_r(r.rs2));
                 self.reg_w(r.rd, self.reg_r(r.rs1) << shamt);
             },
+            RV32I(Slt(r)) => {
+                let value = if self.reg_r_i64(r.rs1) < self.reg_r_i64(r.rs2)
+                    { 1 } else { 0 };
+                self.reg_w(r.rd, value);
+            },
+            RV32I(Sltu(r)) => {
+                let value = if self.reg_r(r.rs1) < self.reg_r(r.rs2) 
+                    { 1 } else { 0 };
+                self.reg_w(r.rd, value);
+            },
+            RV32I(Xor(r)) => {
+                self.reg_w(r.rd, self.reg_r(r.rs1) ^ self.reg_r(r.rs2));
+            },
+            RV32I(self::RV32I::Srl(r)) => { // todo: 32 & 64 bit bug?
+                let shamt = shamt_from_reg_xlen32(self.reg_r(r.rs2));
+                self.reg_w(r.rd, self.reg_r(r.rs1) >> shamt);
+            },
+            RV32I(self::RV32I::Sra(r)) => {
+                let shamt = shamt_from_reg_xlen32(self.reg_r(r.rs2));
+                let sra = self.reg_r_i64(r.rs1) >> shamt;
+                self.reg_w(r.rd, u64::from_ne_bytes(i64::to_ne_bytes(sra)));
+            },
+            RV32I(Or(r)) => {
+                self.reg_w(r.rd, self.reg_r(r.rs1) | self.reg_r(r.rs2));
+            },
+            RV32I(And(r)) => {
+                self.reg_w(r.rd, self.reg_r(r.rs1) & self.reg_r(r.rs2));
+            },
             RV64I(Ld(i)) => self.reg_w(i.rd, 
                 self.data_mem.read_u64(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?),
             RV64I(self::RV64I::Slli(i)) => {
@@ -589,6 +619,19 @@ impl<'a> Execute<'a> {
                 let shamt = shamt_from_imm_xlen64(i.imm_i);
                 let sra = self.reg_r_i64(i.rs1) >> shamt;
                 self.reg_w(i.rd, u64::from_ne_bytes(i64::to_ne_bytes(sra)));
+            },
+            RV64I(self::RV64I::Sll(r)) => {
+                let shamt = shamt_from_reg_xlen64(self.reg_r(r.rs2));
+                self.reg_w(r.rd, self.reg_r(r.rs1) << shamt);
+            },
+            RV64I(self::RV64I::Srl(r)) => {
+                let shamt = shamt_from_reg_xlen64(self.reg_r(r.rs2));
+                self.reg_w(r.rd, self.reg_r(r.rs1) >> shamt);
+            },
+            RV64I(self::RV64I::Sra(r)) => {
+                let shamt = shamt_from_reg_xlen64(self.reg_r(r.rs2));
+                let sra = self.reg_r_i64(r.rs1) >> shamt;
+                self.reg_w(r.rd, u64::from_ne_bytes(i64::to_ne_bytes(sra)));
             },
             _ => panic!("todo"),
         }

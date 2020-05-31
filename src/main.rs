@@ -80,7 +80,7 @@ fn main() {
     }
     let mem = &mut mem as *mut _; // todo!
     let mut fetch = Fetch::new(unsafe { &*mem }, Xlen::X64); // todo!
-    let mut exec = Execute::new(unsafe { &mut *mem });
+    let mut exec = Execute::new(unsafe { &mut *mem }, Xlen::X64);
     let mut pc = entry_addr;
     for _ in 0..10 {
         let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
