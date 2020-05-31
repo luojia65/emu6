@@ -590,7 +590,7 @@ impl<'a> Execute<'a> {
             RV32I(Xor(r)) => {
                 self.reg_w(r.rd, self.reg_r(r.rs1) ^ self.reg_r(r.rs2));
             },
-            RV32I(self::RV32I::Srl(r)) => { // todo: 32 & 64 bit bug?
+            RV32I(self::RV32I::Srl(r)) => { 
                 let shamt = shamt_from_reg_xlen32(self.reg_r(r.rs2));
                 self.reg_w(r.rd, self.reg_r(r.rs1) >> shamt);
             },
@@ -643,7 +643,10 @@ impl<'a> Execute<'a> {
     }
 
     fn reg_r(&self, index: u8) -> u64 {
-        self.regs.x[index as usize]
+        match self.xlen {
+            Xlen::X32 => self.regs.x[index as usize] & 0xFFFFFFFF,
+            Xlen::X64 => self.regs.x[index as usize],
+        }
     }
 
     fn reg_r_i64(&self, index: u8) -> i64 {
@@ -651,7 +654,10 @@ impl<'a> Execute<'a> {
     }
 
     fn reg_w(&mut self, index: u8, data: u64) {
-        self.regs.x[index as usize] = data
+        match self.xlen {
+            Xlen::X32 => self.regs.x[index as usize] = data & 0xFFFFFFFF,
+            Xlen::X64 => self.regs.x[index as usize] = data,
+        }
     }
 }
 
