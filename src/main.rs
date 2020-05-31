@@ -80,5 +80,7 @@ fn main() {
     // println!("Memory: {:?}", mem);
     let mem = Arc::new(mem);
     let mut fetch = riscv64::Fetch { inner: Arc::clone(&mem), pc: entry_addr };
-    println!("{:?}", fetch.next_instruction().unwrap());
+    for _ in 0..10 {
+        println!("{:?}", fetch.next_instruction().unwrap());
+    }
 }
