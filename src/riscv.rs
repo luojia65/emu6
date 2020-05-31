@@ -422,7 +422,7 @@ impl<'a> Execute<'a> {
         }
     }
 
-    pub fn execute(&mut self, ins: Instruction, pc: u64) -> Result<()> {
+    pub fn execute(&mut self, ins: Instruction, pc: u64, pc_out: &mut u64) -> Result<()> {
         use {Instruction::*, self::RV32I::*, self::RV64I::*};
         match ins {
             RV32I(Auipc(u)) => self.reg_w(u.rd, pc.wrapping_add(sext_u32_u64(u.imm_u))),
