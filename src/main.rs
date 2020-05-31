@@ -4,7 +4,7 @@ mod riscv64;
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
 use mmu64::{Endian, Physical, Protect, Config};
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 
 fn main() {
     let matches = App::new("emu6")
@@ -78,9 +78,14 @@ fn main() {
         }
     }
     // println!("Memory: {:?}", mem);
-    let mem = Arc::new(mem);
-    let mut fetch = riscv64::Fetch { inner: Arc::clone(&mem), pc: entry_addr };
+    let mem = Arc::new(RwLock::new(mem));
+    let rr = mem.read().unwrap();
+    let mut fetch = riscv64::Fetch::new(&rr, entry_addr);
+    let mut ww = mem.write().unwrap();
+    let mut exec = riscv64::Execute::new(&mut ww);
     for _ in 0..10 {
-        println!("{:?}", fetch.next_instruction().unwrap());
+        let ins = fetch.next_instruction().unwrap();
+        println!("{:?}", ins);
+
     }
 }

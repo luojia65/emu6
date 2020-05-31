@@ -49,20 +49,16 @@ const FUNCT7_ALU_SUB: u8 = 0b010_0000;
 use crate::mmu64::Physical;
 use crate::mmu64::Result;
 
-pub struct IntRegister {
-    registers: [u64; 32],
-}
-
-pub struct Csr {
-    inner: [u64; 4096],
-}
-
-pub struct Fetch<T> {
-    pub inner: T,
+pub struct Fetch<'a> {
+    pub mem: &'a Physical<'a>,
     pub pc: u64
 }
 
-impl<'a, T: AsRef<Physical<'a>>> Fetch<T> {
+impl<'a> Fetch<'a> {
+    pub fn new(mem: &'a Physical<'a>, pc: u64) -> Self {
+        Fetch { mem, pc }
+    }
+
     pub fn next_instruction(&mut self) -> Result<Instruction> {
         let ins = self.next_u16()?;
         if ins & 0b11 != 0b11 {
@@ -70,20 +66,21 @@ impl<'a, T: AsRef<Physical<'a>>> Fetch<T> {
         }
         if ins & 0b11100 != 0b11100 {
             let ins = (ins as u32) + ((self.next_u16()? as u32) << 16);
-            println!("32 bit {:08X}", ins);
+            // println!("32 bit {:08X}", ins);
             return Ok(resolve_u32(ins));
         }
         todo!()
     }
 
     fn next_u16(&mut self) -> Result<u16> {
-        let ans = self.inner.as_ref().fetch_ins_u16(self.pc);
+        let ans = self.mem.fetch_ins_u16(self.pc);
         self.pc += 2;
         ans
     }
 }
 
 fn resolve_u32(ins: u32) -> Instruction {
+    use {Instruction::*, self::RV32I::*, self::RV64I::*};
     let opcode = ins & 0b111_1111;
     let rd = ((ins >> 7) & 0b1_1111) as u8;
     let rs1 = ((ins >> 15) & 0b1_1111) as u8;
@@ -130,7 +127,6 @@ fn resolve_u32(ins: u32) -> Instruction {
     let i_type = IType { rd, rs1, funct3, imm_i };
     let s_type = SType { rs1, rs2, funct3, imm_s };
     let r_type = RType { rd, rs1, rs2, funct3, funct7 };
-    use {Instruction::*, self::RV32I::*, self::RV64I::*};
     match opcode {
         OPCODE_LUI => Lui(u_type).into(),
         OPCODE_AUIPC => Auipc(u_type).into(),
@@ -200,7 +196,7 @@ fn resolve_u32(ins: u32) -> Instruction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Instruction {
     RV32I(RV32I),
     RV64I(RV64I),
@@ -218,7 +214,7 @@ impl From<RV64I> for Instruction {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum RV32I {
     Lui(UType),
     Auipc(UType),
@@ -263,26 +259,26 @@ pub enum RV32I {
     And(RType),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum RV64I { 
     Lwu(IType),
     Ld(IType),
     Sd(SType),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct UType {
     rd: u8,
     imm_u: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct JType {
     rd: u8,
     imm_j: u32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct IType {
     rd: u8,
     rs1: u8,
@@ -290,7 +286,7 @@ pub struct IType {
     imm_i: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct SType {
     rs1: u8,
     rs2: u8,
@@ -298,7 +294,7 @@ pub struct SType {
     imm_s: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct BType {
     rs1: u8,
     rs2: u8,
@@ -306,11 +302,66 @@ pub struct BType {
     imm_b: i32,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct RType {
     rd: u8,
     rs1: u8,
     rs2: u8,
     funct3: u8,
     funct7: u8,
+}
+
+#[derive(Debug)]
+pub struct IntRegister {
+    regs: [u64; 32],
+}
+
+
+// pub struct Csr {
+//     inner: [u64; 4096],
+// }
+
+#[derive(Debug)]
+pub struct Execute<'a> {
+    data_mem: &'a mut Physical<'a>,
+    regs: Box<IntRegister>,
+}
+
+impl<'a> Execute<'a> {
+    pub fn new(data_mem: &'a mut Physical<'a>) -> Execute<'a> {
+        Execute { 
+            data_mem,
+            regs: Box::new(IntRegister { regs: [0u64; 32] }) 
+        }
+    }
+
+    pub fn execute(&mut self, ins: Instruction) -> Result<()> {
+        use {Instruction::*, self::RV32I::*, self::RV64I::*};
+        match ins {
+            RV64I(Ld(i)) => {
+                let off = self.reg_r_off(i.rs1, i.imm_i as i64);
+                let data = self.data_mem.read_u64(off)?;
+                self.reg_w(i.rd, data)
+            },
+            _ => panic!("todo"),
+        }
+        Ok(())
+    }
+
+    fn reg_r(&self, index: u8) -> u64 {
+        self.regs.regs[index as usize]
+    }
+
+    fn reg_r_off(&self, index: u8, off: i64) -> u64 {
+        let v = self.regs.regs[index as usize];
+        if off > 0 {
+            v.wrapping_add(off as u64)
+        } else { 
+            v.wrapping_sub(off.abs() as u64)
+        }
+    }
+
+    fn reg_w(&mut self, index: u8, data: u64) {
+        self.regs.regs[index as usize] = data
+    }
 }
