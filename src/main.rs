@@ -51,7 +51,7 @@ fn main() {
         header::Class::ThirtyTwo => Xlen::X32,
         header::Class::SixtyFour => Xlen::X64,
         _ => panic!("unsupported xlen")
-    }
+    };
     for program_header in elf_file.program_iter() {
         if program_header.get_type() != Ok(program::Type::Load) {
             continue;
