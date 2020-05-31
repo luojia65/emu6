@@ -135,12 +135,16 @@ fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
     };
     let imm_u = ins & 0b1111_1111_1111_1111_1111_0000_0000_0000;
     let imm_j = {
-        (if ins & 0b1000_0000_0000_0000_0000_0000_0000_0000 != 0 {
+        let mut val = (if ins & 0b1000_0000_0000_0000_0000_0000_0000_0000 != 0 {
             0b1111_1111_1111_0000_0000_0000_0000_0000
         } else { 0 }) | 
         (((ins & 0b0111_1111_1110_0000_0000_0000_0000_0000) >> 21) << 1) | 
         (((ins & 0b0000_0000_0001_0000_0000_0000_0000_0000) >> 20) << 11) | 
-        (((ins & 0b0000_0000_0000_1111_1111_0000_0000_0000) >> 12) << 12)
+        (((ins & 0b0000_0000_0000_1111_1111_0000_0000_0000) >> 12) << 12);
+        if ins >> 31 != 0 { 
+            val |= 0b1111_1111_1111_1111_1111_0000_0000_0000
+        }
+        i32::from_ne_bytes(u32::to_ne_bytes(val))
     };
     let u_type = UType { rd, imm_u }; 
     let j_type = JType { rd, imm_j };
@@ -305,7 +309,7 @@ pub struct UType {
 #[derive(Debug, Clone, Copy)]
 pub struct JType {
     rd: u8,
-    imm_j: u32,
+    imm_j: i32,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -413,7 +417,7 @@ pub struct CJType {
 
 #[derive(Debug)]
 pub struct IntRegister {
-    regs: [u64; 32],
+    x: [u64; 32],
 }
 
 // pub struct Csr {
@@ -430,16 +434,32 @@ impl<'a> Execute<'a> {
     pub fn new(data_mem: &'a mut Physical<'a>) -> Execute<'a> {
         Execute { 
             data_mem,
-            regs: Box::new(IntRegister { regs: [0u64; 32] }) 
+            regs: Box::new(IntRegister { x: [0u64; 32] }) 
         }
     }
 
-    pub fn execute(&mut self, ins: Instruction, pc: u64, pc_out: &mut u64) -> Result<()> {
+    pub fn execute(&mut self, ins: Instruction, pc: u64, pc_nxt: &mut u64) -> Result<()> {
         use {Instruction::*, self::RV32I::*, self::RV64I::*};
         match ins {
+            RV32I(Lui(u)) => self.reg_w(u.rd, sext_u32_u64(u.imm_u)),
             RV32I(Auipc(u)) => self.reg_w(u.rd, pc.wrapping_add(sext_u32_u64(u.imm_u))),
+            RV32I(Jal(j)) => {
+                let pc_link = *pc_nxt;
+                *pc_nxt = u64_add_i32(pc, j.imm_j);
+                self.reg_w(j.rd, pc_link);
+            },
+            RV32I(Jalr(i)) => {
+                let pc_link = *pc_nxt;
+                *pc_nxt = u64_add_i32(self.reg_r(i.rs1), i.imm_i);
+                self.reg_w(i.rd, pc_link);
+            },
+            RV32I(Beq(b)) => {
+                if self.reg_r(b.rs1) == self.reg_r(b.rs2) {
+                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                }
+            },
             RV64I(Ld(i)) => self.reg_w(i.rd, 
-                self.data_mem.read_u64(self.reg_r_off(i.rs1, i.imm_i as i64))?),
+                self.data_mem.read_u64(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?),
             _ => panic!("todo"),
         }
         Ok(())
@@ -450,23 +470,22 @@ impl<'a> Execute<'a> {
     }
 
     fn reg_r(&self, index: u8) -> u64 {
-        self.regs.regs[index as usize]
-    }
-
-    fn reg_r_off(&self, index: u8, off: i64) -> u64 {
-        let v = self.regs.regs[index as usize];
-        if off > 0 {
-            v.wrapping_add(off as u64)
-        } else { 
-            v.wrapping_sub(off.abs() as u64)
-        }
+        self.regs.x[index as usize]
     }
 
     fn reg_w(&mut self, index: u8, data: u64) {
-        self.regs.regs[index as usize] = data
+        self.regs.x[index as usize] = data
     }
 }
 
 fn sext_u32_u64(i: u32) -> u64 {
     (i as u64) | if (i >> 31) != 0 { 0xFFFFFFFF00000000 } else { 0 }
+}
+
+fn u64_add_i32(base: u64, off: i32) -> u64 {
+    if off > 0 {
+        base.wrapping_add(off as u64)
+    } else { 
+        base.wrapping_sub(off.abs() as u64)
+    }
 }
