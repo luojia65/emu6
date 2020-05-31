@@ -54,25 +54,32 @@ use crate::mem64::Physical;
 use crate::error::Result;
 use thiserror::Error;
 
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+pub enum Xlen {
+    X32,
+    X64
+}
+
 pub struct Fetch<'a> {
-    pub mem: &'a Physical<'a>
+    mem: &'a Physical<'a>,
+    xlen: Xlen
 }
 
 impl<'a> Fetch<'a> {
-    pub fn new(mem: &'a Physical<'a>) -> Self {
-        Fetch { mem }
+    pub fn new(mem: &'a Physical<'a>, xlen: Xlen) -> Self {
+        Fetch { mem, xlen }
     }
 
     pub fn next_instruction(&mut self, mut pc: u64) -> Result<(Instruction, u64)> {
         let addr = pc;
         let ins = self.next_u16(&mut pc)?;
         if ins & 0b11 != 0b11 {
-            return Ok((resolve_u16(ins).map_err(|_| 
+            return Ok((resolve_u16(ins, self.xlen).map_err(|_| 
                 FetchError::IllegalInstruction16 { addr, ins })?, pc));
         }
         if ins & 0b11100 != 0b11100 {
             let ins = (ins as u32) + ((self.next_u16(&mut pc)? as u32) << 16);
-            return Ok((resolve_u32(ins).map_err(|_| 
+            return Ok((resolve_u32(ins, self.xlen).map_err(|_| 
                 FetchError::IllegalInstruction32 { addr, ins })?, pc));
         }
         Err(FetchError::InstructionLength { addr })?
@@ -95,12 +102,12 @@ pub enum FetchError {
     InstructionLength { addr: u64 },
 }
 
-fn resolve_u16(ins: u16) -> core::result::Result<Instruction, ()> {
+fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     use self::RVC::*;
     todo!()
 }
 
-fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
+fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     use {self::RV32I::*, self::RV64I::*};
     let opcode = ins & 0b111_1111;
     let rd = ((ins >> 7) & 0b1_1111) as u8;
@@ -170,7 +177,7 @@ fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
             FUNCT3_LOAD_LB => Lb(i_type).into(),
             FUNCT3_LOAD_LH => Lh(i_type).into(),
             FUNCT3_LOAD_LW => Lw(i_type).into(),
-            FUNCT3_LOAD_LD => Ld(i_type).into(),
+            FUNCT3_LOAD_LD if xlen == Xlen::X64 => Ld(i_type).into(),
             FUNCT3_LOAD_LBU => Lbu(i_type).into(),
             FUNCT3_LOAD_LHU => Lhu(i_type).into(),
             FUNCT3_LOAD_LWU => Lwu(i_type).into(),
@@ -180,8 +187,8 @@ fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
             FUNCT3_STORE_SB => Sb(s_type).into(),
             FUNCT3_STORE_SH => Sh(s_type).into(),
             FUNCT3_STORE_SW => Sw(s_type).into(),
-            FUNCT3_STORE_SD => Sd(s_type).into(),
-            _ => panic!("EILL")
+            FUNCT3_STORE_SD if xlen == Xlen::X64 => Sd(s_type).into(),
+            _ => Err(())?
         },
         OPCODE_OP_IMM => match funct3 {
             FUNCT3_ALU_ADD_SUB => Addi(i_type).into(),
@@ -190,13 +197,20 @@ fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
             FUNCT3_ALU_XOR => Xori(i_type).into(),
             FUNCT3_ALU_OR => Ori(i_type).into(),
             FUNCT3_ALU_AND => Andi(i_type).into(),
-            FUNCT3_ALU_SLL => Slli(i_type).into(),
+            FUNCT3_ALU_SLL if funct7 == 0 && xlen == Xlen::X32 => 
+                RV32I::Slli(i_type).into(),
+            FUNCT3_ALU_SLL if funct7 & 0b1111110 == 0 && xlen == Xlen::X64 => 
+                RV64I::Slli(i_type).into(),
             FUNCT3_ALU_SRL_SRA => match funct7 {
-                FUNCT7_ALU_SRL => Srli(i_type).into(),
-                FUNCT7_ALU_SRA => Srai(i_type).into(),
+                FUNCT7_ALU_SRL if xlen == Xlen::X32 => RV32I::Srli(i_type).into(),
+                FUNCT7_ALU_SRA if xlen == Xlen::X32 => RV32I::Srai(i_type).into(),
+                x if x & 0b1111110 == FUNCT7_ALU_SRL && xlen == Xlen::X64 =>
+                    RV64I::Srli(i_type).into(),
+                x if x & 0b1111110 == FUNCT7_ALU_SRA && xlen == Xlen::X64 =>
+                    RV64I::Srai(i_type).into(),
                 _ => Err(())?
             },
-            _ => unreachable!()
+            _ => Err(())?
         },
         OPCODE_OP => match funct3 {
             FUNCT3_ALU_ADD_SUB => match funct7 {
@@ -204,18 +218,23 @@ fn resolve_u32(ins: u32) -> core::result::Result<Instruction, ()> {
                 FUNCT7_ALU_SUB => Sub(r_type).into(),
                 _ => Err(())?
             },
-            FUNCT3_ALU_SLT => Slt(r_type).into(),
-            FUNCT3_ALU_SLTU => Sltu(r_type).into(),
-            FUNCT3_ALU_XOR => Xor(r_type).into(),
-            FUNCT3_ALU_OR => Or(r_type).into(),
-            FUNCT3_ALU_AND => And(r_type).into(),
-            FUNCT3_ALU_SLL => Sll(r_type).into(),
+            FUNCT3_ALU_SLT if funct7 == 0 => Slt(r_type).into(),
+            FUNCT3_ALU_SLTU if funct7 == 0 => Sltu(r_type).into(),
+            FUNCT3_ALU_XOR if funct7 == 0 => Xor(r_type).into(),
+            FUNCT3_ALU_OR if funct7 == 0 => Or(r_type).into(),
+            FUNCT3_ALU_AND if funct7 == 0 => And(r_type).into(),
+            FUNCT3_ALU_SLL if funct7 == 0 && xlen == Xlen::X32 => 
+                RV32I::Sll(r_type).into(),
+            FUNCT3_ALU_SLL if funct7 & 0b1111110 == 0 && xlen == Xlen::X64 => 
+                RV64I::Sll(r_type).into(),
             FUNCT3_ALU_SRL_SRA => match funct7 {
-                FUNCT7_ALU_SRL => Srl(r_type).into(),
-                FUNCT7_ALU_SRA => Sra(r_type).into(),
+                FUNCT7_ALU_SRL if xlen == Xlen::X32 => RV32I::Srl(r_type).into(),
+                FUNCT7_ALU_SRA if xlen == Xlen::X32 => RV32I::Sra(r_type).into(),
+                FUNCT7_ALU_SRL if xlen == Xlen::X64 => RV64I::Srl(r_type).into(),
+                FUNCT7_ALU_SRA if xlen == Xlen::X64 => RV64I::Sra(r_type).into(),
                 _ => Err(())?
             },
-            _ => unreachable!()
+            _ => Err(())?
         },
         _ => Err(())?
     };
@@ -297,6 +316,12 @@ pub enum RV64I {
     Lwu(IType),
     Ld(IType),
     Sd(SType),
+    Sll(RType),
+    Srl(RType),
+    Sra(RType),
+    Slli(IType),
+    Srli(IType),
+    Srai(IType),
     // todo!
 }
 
@@ -505,8 +530,66 @@ impl<'a> Execute<'a> {
                 u64_add_i32(self.reg_r(s.rs1), s.imm_s),
                 lowbit_u64_u32(self.reg_r(s.rs2) )
             )?,
+            RV32I(Addi(i)) => 
+                self.reg_w(i.rd, u64_add_i32(self.reg_r(i.rs1), i.imm_i)),
+            RV32I(Slti(i)) => {
+                let value = if self.reg_r_i64(i.rs1) < (i.imm_i as i64)
+                    { 1 } else { 0 };
+                self.reg_w(i.rd, value);
+            },
+            RV32I(Sltiu(i)) => {
+                let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
+                let value = if self.reg_r(i.rs1) < imm { 1 } else { 0 };
+                self.reg_w(i.rd, value);
+            },
+            RV32I(Ori(i)) => {
+                let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
+                self.reg_w(i.rd, self.reg_r(i.rs1) | imm);
+            },
+            RV32I(Andi(i)) => {
+                let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
+                self.reg_w(i.rd, self.reg_r(i.rs1) & imm);
+            },
+            RV32I(Xori(i)) => {
+                let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
+                self.reg_w(i.rd, self.reg_r(i.rs1) ^ imm);
+            },
+            RV32I(self::RV32I::Slli(i)) => {
+                let shamt = shamt_from_imm_xlen32(i.imm_i);
+                self.reg_w(i.rd, self.reg_r(i.rs1) << shamt);
+            },
+            RV32I(self::RV32I::Srli(i)) => {
+                let shamt = shamt_from_imm_xlen32(i.imm_i);
+                self.reg_w(i.rd, self.reg_r(i.rs1) >> shamt);
+            },
+            RV32I(self::RV32I::Srai(i)) => {
+                let shamt = shamt_from_imm_xlen32(i.imm_i);
+                let sra = self.reg_r_i64(i.rs1) >> shamt;
+                self.reg_w(i.rd, u64::from_ne_bytes(i64::to_ne_bytes(sra)));
+            },
+            RV32I(Add(r)) => self.reg_w(r.rd, 
+                self.reg_r(r.rs1).wrapping_add(self.reg_r(r.rs2))),
+            RV32I(Sub(r)) => self.reg_w(r.rd, 
+                self.reg_r(r.rs1).wrapping_sub(self.reg_r(r.rs2))),
+            RV32I(self::RV32I::Sll(r)) => {
+                let shamt = shamt_from_reg_xlen32(self.reg_r(r.rs2));
+                self.reg_w(r.rd, self.reg_r(r.rs1) << shamt);
+            },
             RV64I(Ld(i)) => self.reg_w(i.rd, 
                 self.data_mem.read_u64(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?),
+            RV64I(self::RV64I::Slli(i)) => {
+                let shamt = shamt_from_imm_xlen64(i.imm_i);
+                self.reg_w(i.rd, self.reg_r(i.rs1) << shamt);
+            },
+            RV64I(self::RV64I::Srli(i)) => {
+                let shamt = shamt_from_imm_xlen64(i.imm_i);
+                self.reg_w(i.rd, self.reg_r(i.rs1) >> shamt);
+            },
+            RV64I(self::RV64I::Srai(i)) => {
+                let shamt = shamt_from_imm_xlen64(i.imm_i);
+                let sra = self.reg_r_i64(i.rs1) >> shamt;
+                self.reg_w(i.rd, u64::from_ne_bytes(i64::to_ne_bytes(sra)));
+            },
             _ => panic!("todo"),
         }
         Ok(())
@@ -559,4 +642,20 @@ fn u64_add_i32(base: u64, off: i32) -> u64 {
     } else { 
         base.wrapping_sub(off.abs() as u64)
     }
+}
+
+fn shamt_from_imm_xlen32(imm: i32) -> u8 {
+    (u32::from_ne_bytes(i32::to_ne_bytes(imm)) & 0x1F) as u8
+}
+
+fn shamt_from_imm_xlen64(imm: i32) -> u8 {
+    (u32::from_ne_bytes(i32::to_ne_bytes(imm)) & 0x3F) as u8
+}
+
+fn shamt_from_reg_xlen32(val: u64) -> u8 {
+    (val & 0x1F) as u8
+}
+
+fn shamt_from_reg_xlen64(val: u64) -> u8 {
+    (val & 0x3F) as u8
 }

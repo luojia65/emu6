@@ -5,7 +5,7 @@ mod error;
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
 use mem64::{Endian, Physical, Protect, Config};
-use riscv::{Fetch, Execute};
+use riscv::{Fetch, Execute, Xlen};
 
 fn main() {
     let matches = App::new("emu6")
@@ -79,7 +79,7 @@ fn main() {
         }
     }
     let mem = &mut mem as *mut _; // todo!
-    let mut fetch = Fetch::new(unsafe { &*mem });
+    let mut fetch = Fetch::new(unsafe { &*mem }, Xlen::X64); // todo!
     let mut exec = Execute::new(unsafe { &mut *mem });
     let mut pc = entry_addr;
     for _ in 0..10 {
