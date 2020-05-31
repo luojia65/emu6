@@ -72,6 +72,10 @@ impl<'a> Fetch<'a> {
         todo!()
     }
 
+    pub fn pc(&self) -> u64 {
+        self.pc
+    }
+
     fn next_u16(&mut self) -> Result<u16> {
         let ans = self.mem.fetch_ins_u16(self.pc);
         self.pc += 2;
@@ -335,17 +339,19 @@ impl<'a> Execute<'a> {
         }
     }
 
-    pub fn execute(&mut self, ins: Instruction) -> Result<()> {
+    pub fn execute(&mut self, ins: Instruction, pc: u64) -> Result<()> {
         use {Instruction::*, self::RV32I::*, self::RV64I::*};
         match ins {
-            RV64I(Ld(i)) => {
-                let off = self.reg_r_off(i.rs1, i.imm_i as i64);
-                let data = self.data_mem.read_u64(off)?;
-                self.reg_w(i.rd, data)
-            },
+            RV32I(Auipc(u)) => self.reg_w(u.rd, pc.wrapping_add(sext_u32_u64(u.imm_u))),
+            RV64I(Ld(i)) => self.reg_w(i.rd, 
+                self.data_mem.read_u64(self.reg_r_off(i.rs1, i.imm_i as i64))?),
             _ => panic!("todo"),
         }
         Ok(())
+    }
+
+    pub(crate) fn dump_regs(&self) {
+        println!("{:?}", self.regs);
     }
 
     fn reg_r(&self, index: u8) -> u64 {
@@ -364,4 +370,8 @@ impl<'a> Execute<'a> {
     fn reg_w(&mut self, index: u8, data: u64) {
         self.regs.regs[index as usize] = data
     }
+}
+
+fn sext_u32_u64(i: u32) -> u64 {
+    (i as u64) | if (i >> 31) != 0 { 0xFFFFFFFF00000000 } else { 0 }
 }
