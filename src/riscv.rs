@@ -51,7 +51,13 @@ const FUNCT7_OP_SRA: u8 = 0b010_0000;
 const FUNCT7_OP_ADD: u8 = 0b000_0000;
 const FUNCT7_OP_SUB: u8 = 0b010_0000;
 
-const FUNCT3_SYSTEM_PRIV: u8 = 0b000;
+const FUNCT3_SYSTEM_PRIV: u8   = 0b000;
+const FUNCT3_SYSTEM_CSRRW: u8  = 0b001;
+const FUNCT3_SYSTEM_CSRRS: u8  = 0b010;
+const FUNCT3_SYSTEM_CSRRC: u8  = 0b011;
+const FUNCT3_SYSTEM_CSRRWI: u8 = 0b101;
+const FUNCT3_SYSTEM_CSRRSI: u8 = 0b110;
+const FUNCT3_SYSTEM_CSRRCI: u8 = 0b111;
 
 const FUNCT12_SYSTEM_ECALL: u32  = 0b000;
 const FUNCT12_SYSTEM_EBREAK: u32 = 0b001;
@@ -116,7 +122,7 @@ fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
 }
 
 fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
-    use {self::RV32I::*, self::RV64I::*};
+    use {self::RV32I::*, self::RV64I::*, self::RVZicsr::*};
     let opcode = ins & 0b111_1111;
     let rd = ((ins >> 7) & 0b1_1111) as u8;
     let rs1 = ((ins >> 15) & 0b1_1111) as u8;
@@ -162,12 +168,14 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
         }
         i32::from_ne_bytes(u32::to_ne_bytes(val))
     };
+    let csr = ((ins >> 20) & 0xFFF) as u16;
     let u_type = UType { rd, imm_u }; 
     let j_type = JType { rd, imm_j };
     let b_type = BType { rs1, rs2, funct3, imm_b };
     let i_type = IType { rd, rs1, funct3, imm_i };
     let s_type = SType { rs1, rs2, funct3, imm_s };
     let r_type = RType { rd, rs1, rs2, funct3, funct7 };
+    let csr_type = CsrType { rd, rs1uimm: rs1, funct3, csr };
     let ans = match opcode {
         OPCODE_LUI => Lui(u_type).into(),
         OPCODE_AUIPC => Auipc(u_type).into(),
@@ -203,13 +211,22 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             FUNCT3_MISC_MEM_FENCE => Fence(i_type).into(),
             _ => Err(())?,
         },
-        OPCODE_SYSTEM => match funct12 {
-            FUNCT12_SYSTEM_ECALL if funct3 == FUNCT3_SYSTEM_PRIV && rs1 == 0 && rd == 0 => 
-                Ecall(i_type).into(),
-            FUNCT12_SYSTEM_EBREAK if funct3 == FUNCT3_SYSTEM_PRIV && rs1 == 0 && rd == 0 => 
-                Ebreak(i_type).into(),
+        OPCODE_SYSTEM => match funct3 {
+            FUNCT3_SYSTEM_PRIV => match funct12 {
+                FUNCT12_SYSTEM_ECALL if funct3 == FUNCT3_SYSTEM_PRIV && rs1 == 0 && rd == 0 => 
+                    Ecall(i_type).into(),
+                FUNCT12_SYSTEM_EBREAK if funct3 == FUNCT3_SYSTEM_PRIV && rs1 == 0 && rd == 0 => 
+                    Ebreak(i_type).into(),
+                _ => Err(())?,
+            },
+            FUNCT3_SYSTEM_CSRRW => Csrrw(csr_type).into(),
+            FUNCT3_SYSTEM_CSRRS => Csrrs(csr_type).into(),
+            FUNCT3_SYSTEM_CSRRC => Csrrc(csr_type).into(),
+            FUNCT3_SYSTEM_CSRRWI => Csrrwi(csr_type).into(),
+            FUNCT3_SYSTEM_CSRRSI => Csrrsi(csr_type).into(),
+            FUNCT3_SYSTEM_CSRRCI => Csrrci(csr_type).into(),
             _ => Err(())?,
-        }
+        },
         OPCODE_OP_IMM => match funct3 {
             FUNCT3_OP_ADD_SUB => Addi(i_type).into(),
             FUNCT3_OP_SLT => Slti(i_type).into(),
@@ -290,6 +307,7 @@ pub enum Instruction {
     RV32I(RV32I),
     RV64I(RV64I),
     RVC(RVC),
+    RVZicsr(RVZicsr),
 }
 
 impl From<RV32I> for Instruction {
@@ -307,6 +325,12 @@ impl From<RV64I> for Instruction {
 impl From<RVC> for Instruction {
     fn from(src: RVC) -> Instruction {
         Instruction::RVC(src)
+    }
+}
+
+impl From<RVZicsr> for Instruction {
+    fn from(src: RVZicsr) -> Instruction {
+        Instruction::RVZicsr(src)
     }
 }
 
@@ -500,6 +524,24 @@ pub struct CJType {
     target: u32,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub enum RVZicsr {
+    Csrrw(CsrType),
+    Csrrs(CsrType),
+    Csrrc(CsrType),
+    Csrrwi(CsrType),
+    Csrrsi(CsrType),
+    Csrrci(CsrType),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CsrType {
+    rd: u8,
+    rs1uimm: u8,
+    funct3: u8,
+    csr: u16,
+}
+
 #[derive(Debug)]
 pub struct IntRegister {
     x: [u64; 32],
@@ -595,14 +637,14 @@ impl<'a> Execute<'a> {
             RV32I(Addi(i)) => 
                 self.reg_w(i.rd, u64_add_i32(self.reg_r(i.rs1), i.imm_i)),
             RV32I(Slti(i)) => {
-                let vOPe = if self.reg_r_i64(i.rs1) < (i.imm_i as i64)
+                let value = if self.reg_r_i64(i.rs1) < (i.imm_i as i64)
                     { 1 } else { 0 };
-                self.reg_w(i.rd, vOPe);
+                self.reg_w(i.rd, value);
             },
             RV32I(Sltiu(i)) => {
                 let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
-                let vOPe = if self.reg_r(i.rs1) < imm { 1 } else { 0 };
-                self.reg_w(i.rd, vOPe);
+                let value = if self.reg_r(i.rs1) < imm { 1 } else { 0 };
+                self.reg_w(i.rd, value);
             },
             RV32I(Ori(i)) => {
                 let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
@@ -638,14 +680,14 @@ impl<'a> Execute<'a> {
                 self.reg_w(r.rd, self.reg_r(r.rs1) << shamt);
             },
             RV32I(Slt(r)) => {
-                let vOPe = if self.reg_r_i64(r.rs1) < self.reg_r_i64(r.rs2)
+                let value = if self.reg_r_i64(r.rs1) < self.reg_r_i64(r.rs2)
                     { 1 } else { 0 };
-                self.reg_w(r.rd, vOPe);
+                self.reg_w(r.rd, value);
             },
             RV32I(Sltu(r)) => {
-                let vOPe = if self.reg_r(r.rs1) < self.reg_r(r.rs2) 
+                let value = if self.reg_r(r.rs1) < self.reg_r(r.rs2) 
                     { 1 } else { 0 };
-                self.reg_w(r.rd, vOPe);
+                self.reg_w(r.rd, value);
             },
             RV32I(Xor(r)) => {
                 self.reg_w(r.rd, self.reg_r(r.rs1) ^ self.reg_r(r.rs2));
@@ -707,6 +749,7 @@ impl<'a> Execute<'a> {
     }
 
     fn reg_r(&self, index: u8) -> u64 {
+        if index == 0 { return 0 }
         match self.xlen {
             Xlen::X32 => self.regs.x[index as usize] & 0xFFFFFFFF,
             Xlen::X64 => self.regs.x[index as usize],
@@ -714,10 +757,12 @@ impl<'a> Execute<'a> {
     }
 
     fn reg_r_i64(&self, index: u8) -> i64 {
+        if index == 0 { return 0 }
         i64::from_ne_bytes(u64::to_ne_bytes(self.regs.x[index as usize]))
     }
 
     fn reg_w(&mut self, index: u8, data: u64) {
+        if index == 0 { return }
         match self.xlen {
             Xlen::X32 => self.regs.x[index as usize] = data & 0xFFFFFFFF,
             Xlen::X64 => self.regs.x[index as usize] = data,
