@@ -6,6 +6,7 @@ const OPCODE_OP_IMM32: u32 = 0b001_1011;
 const OPCODE_STORE: u32 =    0b010_0011; 
 const OPCODE_OP: u32 =       0b011_0011; 
 const OPCODE_LUI: u32 =      0b011_0111; 
+const OPCODE_OP_32: u32 =    0b011_1011; 
 const OPCODE_BRANCH: u32 =   0b110_0011; 
 const OPCODE_JALR: u32 =     0b110_0111; 
 const OPCODE_JAL: u32 =      0b110_1111;
@@ -49,6 +50,13 @@ const FUNCT7_ALU_SRA: u8 = 0b010_0000;
 
 const FUNCT7_ALU_ADD: u8 = 0b000_0000;
 const FUNCT7_ALU_SUB: u8 = 0b010_0000;
+
+const FUNCT3_SYSTEM_PRIV: u8 = 0b000;
+
+const FUNCT12_SYSTEM_ECALL: u32  = 0b000;
+const FUNCT12_SYSTEM_EBREAK: u32 = 0b001;
+
+const FUNCT3_MISC_MEM_FENCE: u8 = 0b000;
 
 use crate::mem64::Physical;
 use crate::error::Result;
@@ -115,6 +123,7 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     let rs2 = ((ins >> 20) & 0b1_1111) as u8;
     let funct3 = ((ins >> 12) & 0b111) as u8;
     let funct7 = ((ins >> 25) & 0b111_1111) as u8;
+    let funct12 = (ins >> 20) & 0b1111_1111_1111;
     let imm_i = {
         let mut val = (ins >> 20) & 0b1111_1111_1111;
         if (ins >> 31) != 0 {
@@ -190,6 +199,17 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             FUNCT3_STORE_SD if xlen == Xlen::X64 => Sd(s_type).into(),
             _ => Err(())?
         },
+        OPCODE_MISC_MEM => match funct3 {
+            FUNCT3_MISC_MEM_FENCE => Fence(i_type).into(),
+            _ => Err(())?,
+        },
+        OPCODE_SYSTEM => match funct12 {
+            FUNCT12_SYSTEM_ECALL if funct3 == FUNCT3_SYSTEM_PRIV && rs1 == 0 && rd == 0 => 
+                Ecall(i_type).into(),
+            FUNCT12_SYSTEM_EBREAK if funct3 == FUNCT3_SYSTEM_PRIV && rs1 == 0 && rd == 0 => 
+                Ebreak(i_type).into(),
+            _ => Err(())?,
+        }
         OPCODE_OP_IMM => match funct3 {
             FUNCT3_ALU_ADD_SUB => Addi(i_type).into(),
             FUNCT3_ALU_SLT => Slti(i_type).into(),
@@ -235,6 +255,30 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
                 _ => Err(())?
             },
             _ => Err(())?
+        },
+        OPCODE_OP_IMM32 if xlen == Xlen::X64 => match funct3 {
+            FUNCT3_ALU_ADD_SUB => Addiw(i_type).into(),
+            FUNCT3_ALU_SLL if funct7 == 0 => Slliw(i_type).into(),
+            FUNCT3_ALU_SRL_SRA => match funct7 {
+                FUNCT7_ALU_SRL => Srliw(i_type).into(),
+                FUNCT7_ALU_SRA => Sraiw(i_type).into(),
+                _ => Err(())?,
+            },
+            _ => Err(())?
+        },
+        OPCODE_OP_32 if xlen == Xlen::X64 => match funct3 {
+            FUNCT3_ALU_ADD_SUB => match funct7 {
+                FUNCT7_ALU_ADD => Addw(r_type).into(),
+                FUNCT7_ALU_SUB => Subw(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT3_ALU_SLL if funct7 == 0 => Sllw(r_type).into(),
+            FUNCT3_ALU_SRL_SRA => match funct7 {
+                FUNCT7_ALU_SRL => Srlw(r_type).into(),
+                FUNCT7_ALU_SRA => Sraw(r_type).into(),
+                _ => Err(())?,
+            },
+            _ => Err(())?,
         },
         _ => Err(())?
     };
@@ -309,6 +353,10 @@ pub enum RV32I {
     Sra(RType),
     Or(RType),
     And(RType),
+
+    Fence(IType),
+    Ecall(IType),
+    Ebreak(IType),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -316,13 +364,25 @@ pub enum RV64I {
     Lwu(IType),
     Ld(IType),
     Sd(SType),
+
     Sll(RType),
     Srl(RType),
     Sra(RType),
+
     Slli(IType),
     Srli(IType),
     Srai(IType),
-    // todo!
+
+    Addiw(IType),
+    Slliw(IType),
+    Srliw(IType),
+    Sraiw(IType),
+
+    Addw(RType),
+    Subw(RType),
+    Sllw(RType),
+    Srlw(RType),
+    Sraw(RType),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -607,6 +667,10 @@ impl<'a> Execute<'a> {
             },
             RV64I(Ld(i)) => self.reg_w(i.rd, 
                 self.data_mem.read_u64(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?),
+            RV64I(Sd(s)) => self.data_mem.write_u64(
+                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
+                self.reg_r(s.rs2)
+            )?,
             RV64I(self::RV64I::Slli(i)) => {
                 let shamt = shamt_from_imm_xlen64(i.imm_i);
                 self.reg_w(i.rd, self.reg_r(i.rs1) << shamt);
