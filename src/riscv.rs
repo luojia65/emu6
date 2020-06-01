@@ -547,15 +547,24 @@ pub struct IntRegister {
     x: [u64; 32],
 }
 
-// pub struct Csr {
-//     inner: [u64; 4096],
-// }
+pub struct Csr {
+    csr: [u64; 4096],
+}
 
-#[derive(Debug)]
 pub struct Execute<'a> {
     data_mem: &'a mut Physical<'a>,
     regs: Box<IntRegister>,
+    csrs: Box<Csr>,
     xlen: Xlen,
+}
+
+impl<'a> core::fmt::Debug for Execute<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_struct("Execute")
+            .field("regs", &self.regs)
+            .field("xlen", &self.xlen)
+            .finish()
+    }
 }
 
 impl<'a> Execute<'a> {
@@ -563,12 +572,13 @@ impl<'a> Execute<'a> {
         Execute { 
             data_mem,
             regs: Box::new(IntRegister { x: [0u64; 32] }),
+            csrs: Box::new(Csr { csr: [0u64; 4096] }),
             xlen
         }
     }
 
     pub fn execute(&mut self, ins: Instruction, pc: u64, pc_nxt: &mut u64) -> Result<()> {
-        use {Instruction::*, self::RV32I::*, self::RV64I::*};
+        use {Instruction::*, self::RV32I::*, self::RV64I::*, self::RVZicsr::*};
         match ins {
             RV32I(Lui(u)) => self.reg_w(u.rd, sext_u32_u64(u.imm_u)),
             RV32I(Auipc(u)) => self.reg_w(u.rd, pc.wrapping_add(sext_u32_u64(u.imm_u))),
@@ -739,6 +749,31 @@ impl<'a> Execute<'a> {
                 let sra = self.reg_r_i64(r.rs1) >> shamt;
                 self.reg_w(r.rd, u64::from_ne_bytes(i64::to_ne_bytes(sra)));
             },
+            // side effect?
+            RVZicsr(Csrrw(csr)) => {
+                self.reg_w(csr.rd, self.csr_r(csr.csr));
+                self.csr_w(csr.csr, self.reg_r(csr.rs1uimm));
+            },
+            RVZicsr(Csrrs(csr)) => {
+                self.reg_w(csr.rd, self.csr_r(csr.csr));
+                self.csr_w(csr.csr, self.csr_r(csr.csr) | self.reg_r(csr.rs1uimm));
+            },
+            RVZicsr(Csrrc(csr)) => {
+                self.reg_w(csr.rd, self.csr_r(csr.csr));
+                self.csr_w(csr.csr, self.csr_r(csr.csr) & !self.reg_r(csr.rs1uimm));
+            },
+            RVZicsr(Csrrwi(csr)) => {
+                self.reg_w(csr.rd, self.csr_r(csr.csr));
+                self.csr_w(csr.csr, csr.rs1uimm as u64);
+            },
+            RVZicsr(Csrrsi(csr)) => {
+                self.reg_w(csr.rd, self.csr_r(csr.csr));
+                self.csr_w(csr.csr, self.csr_r(csr.csr) | (csr.rs1uimm as u64));
+            },
+            RVZicsr(Csrrci(csr)) => {
+                self.reg_w(csr.rd, self.csr_r(csr.csr));
+                self.csr_w(csr.csr, self.csr_r(csr.csr) & !(csr.rs1uimm as u64));
+            },
             _ => panic!("todo"),
         }
         Ok(())
@@ -766,6 +801,20 @@ impl<'a> Execute<'a> {
         match self.xlen {
             Xlen::X32 => self.regs.x[index as usize] = data & 0xFFFFFFFF,
             Xlen::X64 => self.regs.x[index as usize] = data,
+        }
+    }
+
+    fn csr_r(&self, csr: u16) -> u64 {
+        match self.xlen {
+            Xlen::X32 => self.csrs.csr[csr as usize] & 0xFFFFFFFF,
+            Xlen::X64 => self.csrs.csr[csr as usize],
+        }
+    }
+
+    fn csr_w(&mut self, csr: u16, data: u64) {
+        match self.xlen {
+            Xlen::X32 => self.csrs.csr[csr as usize] = data & 0xFFFFFFFF,
+            Xlen::X64 => self.csrs.csr[csr as usize] = data,
         }
     }
 }
