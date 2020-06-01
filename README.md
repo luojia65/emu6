@@ -6,11 +6,12 @@ Very simple RISC-V emulator. Reads ELF file and execute in emulator.
 
 - [x] RV32I
 - [x] RV64I
-- [ ] Extension C
-- [x] Zicsr
+- [ ] Extension M
+- [ ] Extension A
 - [ ] Extension F
 - [ ] Extension D
-- [ ] Extension A
+- [ ] Extension C
 - [ ] Extension V
+- [x] Zicsr
 - [ ] Sv32
 - [ ] Sv39
