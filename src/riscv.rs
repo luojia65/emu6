@@ -36,20 +36,20 @@ const FUNCT3_BRANCH_BGE: u8 = 0b101;
 const FUNCT3_BRANCH_BLTU: u8 = 0b110;
 const FUNCT3_BRANCH_BGEU: u8 = 0b111;
 
-const FUNCT3_ALU_ADD_SUB: u8 = 0b000;
-const FUNCT3_ALU_SLL: u8   = 0b001;
-const FUNCT3_ALU_SLT: u8   = 0b010;
-const FUNCT3_ALU_SLTU: u8  = 0b011;
-const FUNCT3_ALU_XOR: u8   = 0b100;
-const FUNCT3_ALU_SRL_SRA: u8 = 0b101;
-const FUNCT3_ALU_OR: u8    = 0b110;
-const FUNCT3_ALU_AND: u8   = 0b111;
+const FUNCT3_OP_ADD_SUB: u8 = 0b000;
+const FUNCT3_OP_SLL: u8   = 0b001;
+const FUNCT3_OP_SLT: u8   = 0b010;
+const FUNCT3_OP_SLTU: u8  = 0b011;
+const FUNCT3_OP_XOR: u8   = 0b100;
+const FUNCT3_OP_SRL_SRA: u8 = 0b101;
+const FUNCT3_OP_OR: u8    = 0b110;
+const FUNCT3_OP_AND: u8   = 0b111;
 
-const FUNCT7_ALU_SRL: u8 = 0b000_0000;
-const FUNCT7_ALU_SRA: u8 = 0b010_0000;
+const FUNCT7_OP_SRL: u8 = 0b000_0000;
+const FUNCT7_OP_SRA: u8 = 0b010_0000;
 
-const FUNCT7_ALU_ADD: u8 = 0b000_0000;
-const FUNCT7_ALU_SUB: u8 = 0b010_0000;
+const FUNCT7_OP_ADD: u8 = 0b000_0000;
+const FUNCT7_OP_SUB: u8 = 0b010_0000;
 
 const FUNCT3_SYSTEM_PRIV: u8 = 0b000;
 
@@ -211,71 +211,71 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             _ => Err(())?,
         }
         OPCODE_OP_IMM => match funct3 {
-            FUNCT3_ALU_ADD_SUB => Addi(i_type).into(),
-            FUNCT3_ALU_SLT => Slti(i_type).into(),
-            FUNCT3_ALU_SLTU => Sltiu(i_type).into(),
-            FUNCT3_ALU_XOR => Xori(i_type).into(),
-            FUNCT3_ALU_OR => Ori(i_type).into(),
-            FUNCT3_ALU_AND => Andi(i_type).into(),
-            FUNCT3_ALU_SLL if funct7 == 0 && xlen == Xlen::X32 => 
+            FUNCT3_OP_ADD_SUB => Addi(i_type).into(),
+            FUNCT3_OP_SLT => Slti(i_type).into(),
+            FUNCT3_OP_SLTU => Sltiu(i_type).into(),
+            FUNCT3_OP_XOR => Xori(i_type).into(),
+            FUNCT3_OP_OR => Ori(i_type).into(),
+            FUNCT3_OP_AND => Andi(i_type).into(),
+            FUNCT3_OP_SLL if funct7 == 0 && xlen == Xlen::X32 => 
                 RV32I::Slli(i_type).into(),
-            FUNCT3_ALU_SLL if funct7 & 0b1111110 == 0 && xlen == Xlen::X64 => 
+            FUNCT3_OP_SLL if funct7 & 0b1111110 == 0 && xlen == Xlen::X64 => 
                 RV64I::Slli(i_type).into(),
-            FUNCT3_ALU_SRL_SRA => match funct7 {
-                FUNCT7_ALU_SRL if xlen == Xlen::X32 => RV32I::Srli(i_type).into(),
-                FUNCT7_ALU_SRA if xlen == Xlen::X32 => RV32I::Srai(i_type).into(),
-                x if x & 0b1111110 == FUNCT7_ALU_SRL && xlen == Xlen::X64 =>
+            FUNCT3_OP_SRL_SRA => match funct7 {
+                FUNCT7_OP_SRL if xlen == Xlen::X32 => RV32I::Srli(i_type).into(),
+                FUNCT7_OP_SRA if xlen == Xlen::X32 => RV32I::Srai(i_type).into(),
+                x if x & 0b1111110 == FUNCT7_OP_SRL && xlen == Xlen::X64 =>
                     RV64I::Srli(i_type).into(),
-                x if x & 0b1111110 == FUNCT7_ALU_SRA && xlen == Xlen::X64 =>
+                x if x & 0b1111110 == FUNCT7_OP_SRA && xlen == Xlen::X64 =>
                     RV64I::Srai(i_type).into(),
                 _ => Err(())?
             },
             _ => Err(())?
         },
         OPCODE_OP => match funct3 {
-            FUNCT3_ALU_ADD_SUB => match funct7 {
-                FUNCT7_ALU_ADD => Add(r_type).into(),
-                FUNCT7_ALU_SUB => Sub(r_type).into(),
+            FUNCT3_OP_ADD_SUB => match funct7 {
+                FUNCT7_OP_ADD => Add(r_type).into(),
+                FUNCT7_OP_SUB => Sub(r_type).into(),
                 _ => Err(())?
             },
-            FUNCT3_ALU_SLT if funct7 == 0 => Slt(r_type).into(),
-            FUNCT3_ALU_SLTU if funct7 == 0 => Sltu(r_type).into(),
-            FUNCT3_ALU_XOR if funct7 == 0 => Xor(r_type).into(),
-            FUNCT3_ALU_OR if funct7 == 0 => Or(r_type).into(),
-            FUNCT3_ALU_AND if funct7 == 0 => And(r_type).into(),
-            FUNCT3_ALU_SLL if funct7 == 0 && xlen == Xlen::X32 => 
+            FUNCT3_OP_SLT if funct7 == 0 => Slt(r_type).into(),
+            FUNCT3_OP_SLTU if funct7 == 0 => Sltu(r_type).into(),
+            FUNCT3_OP_XOR if funct7 == 0 => Xor(r_type).into(),
+            FUNCT3_OP_OR if funct7 == 0 => Or(r_type).into(),
+            FUNCT3_OP_AND if funct7 == 0 => And(r_type).into(),
+            FUNCT3_OP_SLL if funct7 == 0 && xlen == Xlen::X32 => 
                 RV32I::Sll(r_type).into(),
-            FUNCT3_ALU_SLL if funct7 & 0b1111110 == 0 && xlen == Xlen::X64 => 
+            FUNCT3_OP_SLL if funct7 & 0b1111110 == 0 && xlen == Xlen::X64 => 
                 RV64I::Sll(r_type).into(),
-            FUNCT3_ALU_SRL_SRA => match funct7 {
-                FUNCT7_ALU_SRL if xlen == Xlen::X32 => RV32I::Srl(r_type).into(),
-                FUNCT7_ALU_SRA if xlen == Xlen::X32 => RV32I::Sra(r_type).into(),
-                FUNCT7_ALU_SRL if xlen == Xlen::X64 => RV64I::Srl(r_type).into(),
-                FUNCT7_ALU_SRA if xlen == Xlen::X64 => RV64I::Sra(r_type).into(),
+            FUNCT3_OP_SRL_SRA => match funct7 {
+                FUNCT7_OP_SRL if xlen == Xlen::X32 => RV32I::Srl(r_type).into(),
+                FUNCT7_OP_SRA if xlen == Xlen::X32 => RV32I::Sra(r_type).into(),
+                FUNCT7_OP_SRL if xlen == Xlen::X64 => RV64I::Srl(r_type).into(),
+                FUNCT7_OP_SRA if xlen == Xlen::X64 => RV64I::Sra(r_type).into(),
                 _ => Err(())?
             },
             _ => Err(())?
         },
         OPCODE_OP_IMM32 if xlen == Xlen::X64 => match funct3 {
-            FUNCT3_ALU_ADD_SUB => Addiw(i_type).into(),
-            FUNCT3_ALU_SLL if funct7 == 0 => Slliw(i_type).into(),
-            FUNCT3_ALU_SRL_SRA => match funct7 {
-                FUNCT7_ALU_SRL => Srliw(i_type).into(),
-                FUNCT7_ALU_SRA => Sraiw(i_type).into(),
+            FUNCT3_OP_ADD_SUB => Addiw(i_type).into(),
+            FUNCT3_OP_SLL if funct7 == 0 => Slliw(i_type).into(),
+            FUNCT3_OP_SRL_SRA => match funct7 {
+                FUNCT7_OP_SRL => Srliw(i_type).into(),
+                FUNCT7_OP_SRA => Sraiw(i_type).into(),
                 _ => Err(())?,
             },
             _ => Err(())?
         },
         OPCODE_OP_32 if xlen == Xlen::X64 => match funct3 {
-            FUNCT3_ALU_ADD_SUB => match funct7 {
-                FUNCT7_ALU_ADD => Addw(r_type).into(),
-                FUNCT7_ALU_SUB => Subw(r_type).into(),
+            FUNCT3_OP_ADD_SUB => match funct7 {
+                FUNCT7_OP_ADD => Addw(r_type).into(),
+                FUNCT7_OP_SUB => Subw(r_type).into(),
                 _ => Err(())?
             },
-            FUNCT3_ALU_SLL if funct7 == 0 => Sllw(r_type).into(),
-            FUNCT3_ALU_SRL_SRA => match funct7 {
-                FUNCT7_ALU_SRL => Srlw(r_type).into(),
-                FUNCT7_ALU_SRA => Sraw(r_type).into(),
+            FUNCT3_OP_SLL if funct7 == 0 => Sllw(r_type).into(),
+            FUNCT3_OP_SRL_SRA => match funct7 {
+                FUNCT7_OP_SRL => Srlw(r_type).into(),
+                FUNCT7_OP_SRA => Sraw(r_type).into(),
                 _ => Err(())?,
             },
             _ => Err(())?,
@@ -595,14 +595,14 @@ impl<'a> Execute<'a> {
             RV32I(Addi(i)) => 
                 self.reg_w(i.rd, u64_add_i32(self.reg_r(i.rs1), i.imm_i)),
             RV32I(Slti(i)) => {
-                let value = if self.reg_r_i64(i.rs1) < (i.imm_i as i64)
+                let vOPe = if self.reg_r_i64(i.rs1) < (i.imm_i as i64)
                     { 1 } else { 0 };
-                self.reg_w(i.rd, value);
+                self.reg_w(i.rd, vOPe);
             },
             RV32I(Sltiu(i)) => {
                 let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
-                let value = if self.reg_r(i.rs1) < imm { 1 } else { 0 };
-                self.reg_w(i.rd, value);
+                let vOPe = if self.reg_r(i.rs1) < imm { 1 } else { 0 };
+                self.reg_w(i.rd, vOPe);
             },
             RV32I(Ori(i)) => {
                 let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
@@ -638,14 +638,14 @@ impl<'a> Execute<'a> {
                 self.reg_w(r.rd, self.reg_r(r.rs1) << shamt);
             },
             RV32I(Slt(r)) => {
-                let value = if self.reg_r_i64(r.rs1) < self.reg_r_i64(r.rs2)
+                let vOPe = if self.reg_r_i64(r.rs1) < self.reg_r_i64(r.rs2)
                     { 1 } else { 0 };
-                self.reg_w(r.rd, value);
+                self.reg_w(r.rd, vOPe);
             },
             RV32I(Sltu(r)) => {
-                let value = if self.reg_r(r.rs1) < self.reg_r(r.rs2) 
+                let vOPe = if self.reg_r(r.rs1) < self.reg_r(r.rs2) 
                     { 1 } else { 0 };
-                self.reg_w(r.rd, value);
+                self.reg_w(r.rd, vOPe);
             },
             RV32I(Xor(r)) => {
                 self.reg_w(r.rd, self.reg_r(r.rs1) ^ self.reg_r(r.rs2));
