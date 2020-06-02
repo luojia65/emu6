@@ -16,6 +16,16 @@ Use `emu6 --help` for further usage instructions.
 
 ## Features
 
+Software features:
+
+- [x] Load ELF files
+- [ ] Interactive debug shell
+- [ ] DTB support
+- [ ] RISC-V ISA support
+- [ ] Thumb-2 ISA support
+- [ ] GDB server
+- [ ] Cache model
+
 RISC-V instruction set and features:
 
 - [x] RV32I

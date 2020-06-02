@@ -667,12 +667,12 @@ pub enum RVC {
     Caddiw(CIType),
     Cli(CIType),
     Caddi16sp(CIType),
-    Clui(CIType), //?
-    Csrli(CIType), //?
-    Csrli64(CIType), //?
-    Csrai(CIType), //?
-    Csrai64(CIType), //?
-    Candi(CIType), //?
+    Clui(CIType),
+    Csrli(CIType),
+    Csrli64(CIType),
+    Csrai(CIType),
+    Csrai64(CIType),
+    Candi(CIType),
     Csub(CAType),
     Cxor(CAType),
     Cor(CAType),
