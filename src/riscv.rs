@@ -84,7 +84,7 @@ impl<'a> Fetch<'a> {
         Fetch { mem, xlen }
     }
 
-    pub fn next_instruction(&mut self, mut pc: u64) -> Result<(Instruction, u64)> {
+    pub fn next_instruction(&mut self, mut pc: XData) -> Result<(Instruction, XData)> {
         let addr = pc;
         let ins = self.next_u16(&mut pc)?;
         if ins & 0b11 != 0b11 {
@@ -99,8 +99,8 @@ impl<'a> Fetch<'a> {
         Err(FetchError::InstructionLength { addr })?
     }
 
-    fn next_u16(&mut self, pc: &mut u64) -> Result<u16> {
-        let ans = self.mem.fetch_ins_u16(*pc);
+    fn next_u16(&mut self, pc: &mut XData) -> Result<u16> {
+        let ans = self.mem.fetch_ins_u16(pc.to_mem_addr());
         *pc += 2;
         ans
     }
@@ -108,12 +108,12 @@ impl<'a> Fetch<'a> {
 
 #[derive(Error, Clone, Debug)]
 pub enum FetchError {
-    #[error("Illegal 16-bit instruction 0x{ins:04X} at address: 0x{addr:016X} ")]
-    IllegalInstruction16 { addr: u64, ins: u16 },
-    #[error("Illegal 32-bit instruction 0x{ins:08X} at address: 0x{addr:016X} ")]
-    IllegalInstruction32 { addr: u64, ins: u32 },
-    #[error("Illegal instruction at address: 0x{addr:016X}; length over 32-bit is not supported")]
-    InstructionLength { addr: u64 },
+    #[error("Illegal 16-bit instruction 0x{ins:04X} at address: 0x{addr:?} ")]
+    IllegalInstruction16 { addr: XData, ins: u16 },
+    #[error("Illegal 32-bit instruction 0x{ins:08X} at address: 0x{addr:?} ")]
+    IllegalInstruction32 { addr: XData, ins: u32 },
+    #[error("Illegal instruction at address: 0x{addr:?}; length over 32-bit is not supported")]
+    InstructionLength { addr: XData },
 }
 
 fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
@@ -549,9 +549,225 @@ pub struct CsrType {
 }
 
 #[derive(Debug)]
-pub enum XReg {
-    X32(Box<[u32; 32]>),
-    X64(Box<[u64; 32]>),
+pub struct XReg {
+    x: [XData; 32],
+}
+
+// X64s > X32s; however in impl this cannot happen
+#[derive(Debug, Clone, Copy, Ord, Eq, PartialEq)]
+pub enum XData {
+    X32(u32),
+    X64(u64),
+}
+
+impl core::cmp::PartialOrd for XData {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use XData::*;
+        match (self, other) {
+            (X32(a), X32(b)) => a.partial_cmp(b),
+            (X64(a), X64(b)) => a.partial_cmp(b),
+            _ => None
+        } 
+    }
+}
+
+impl core::cmp::PartialEq<u32> for XData {
+    fn eq(&self, other: &u32) -> bool {
+        use XData::*;
+        match self {
+            X32(a) => *a == *other,
+            X64(a) => *a == *other as u64,
+        } 
+    }
+}
+
+impl core::cmp::PartialOrd<u32> for XData {
+    fn partial_cmp(&self, other: &u32) -> Option<std::cmp::Ordering> {
+        use XData::*;
+        match self {
+            X32(a) => a.partial_cmp(other),
+            X64(a) => a.partial_cmp(&(*other as u64)),
+        } 
+    }
+}
+
+#[derive(Debug, Clone, Copy, Ord, Eq, PartialEq)]
+pub enum XDataI {
+    X32(i32),
+    X64(i64),
+}
+
+impl core::cmp::PartialOrd for XDataI {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        use XDataI::*;
+        match (self, other) {
+            (X32(a), X32(b)) => a.partial_cmp(b),
+            (X64(a), X64(b)) => a.partial_cmp(b),
+            _ => None
+        } 
+    }
+}
+
+impl core::cmp::PartialEq<i32> for XDataI {
+    fn eq(&self, other: &i32) -> bool {
+        use XDataI::*;
+        match self {
+            X32(a) => *a == *other,
+            X64(a) => *a == *other as i64,
+        } 
+    }
+}
+
+impl core::cmp::PartialOrd<i32> for XDataI {
+    fn partial_cmp(&self, other: &i32) -> Option<std::cmp::Ordering> {
+        use XDataI::*;
+        match self {
+            X32(a) => a.partial_cmp(other),
+            X64(a) => a.partial_cmp(&(*other as i64)),
+        } 
+    }
+}
+
+impl XData {
+    fn set_zext_u8(&mut self, a: u8) {
+        match self {
+            XData::X32(data) => *data = a as u32,
+            XData::X64(data) => *data = a as u64,
+        }
+    }
+
+    fn set_zext_u16(&mut self, a: u16) {
+        match self {
+            XData::X32(data) => *data = a as u32,
+            XData::X64(data) => *data = a as u64,
+        }
+    }
+
+    fn set_zext_u32(&mut self, a: u32) {
+        match self {
+            XData::X32(data) => *data = a,
+            XData::X64(data) => *data = a as u64,
+        }
+    }
+
+    fn set_sext_u8(&mut self, a: u8) {
+        match self {
+            XData::X32(data) => 
+                *data = (a as u32) | if (a >> 7) != 0 { 0xFFFFFF00 } else { 0 },
+            XData::X64(data) => 
+                *data = (a as u64) | if (a >> 7) != 0 { 0xFFFFFFFFFFFFFF00 } else { 0 },
+        }
+    }
+
+    fn set_sext_u16(&mut self, a: u16) {
+        match self {
+            XData::X32(data) => 
+                *data = (a as u32) | if (a >> 7) != 0 { 0xFFFF0000 } else { 0 },
+            XData::X64(data) => 
+                *data = (a as u64) | if (a >> 7) != 0 { 0xFFFFFFFFFFFF0000 } else { 0 },
+        }
+    }
+
+    fn set_sext_u32(&mut self, a: u32) {
+        match self {
+            XData::X32(data) => *data = a,
+            XData::X64(data) => 
+                *data = (a as u64) | if (a >> 7) != 0 { 0xFFFFFFFF00000000 } else { 0 },
+        }
+    }
+
+    fn set_sext_u64(&mut self, a: u64) {
+        match self {
+            XData::X32(_) => panic!("Write u64 on XLEN < u64"),
+            XData::X64(data) => *data = a,
+        }
+    }
+
+    fn lowbit_u8(self) -> u8 {
+        match self {
+            XData::X32(data) => (data & 0xFF) as u8,
+            XData::X64(data) => (data & 0xFF) as u8,
+        }
+    }
+
+    fn lowbit_u16(self) -> u16 {
+        match self {
+            XData::X32(data) => (data & 0xFFFF) as u16,
+            XData::X64(data) => (data & 0xFFFF) as u16,
+        }
+    }
+
+    fn lowbit_u32(self) -> u32 {
+        match self {
+            XData::X32(data) => data,
+            XData::X64(data) => (data & 0xFFFFFFFF) as u32,
+        }
+    }
+
+    fn to_mem_addr(self) -> u64 {
+        match self {
+            XData::X32(data) => data as u64,
+            XData::X64(data) => data,
+        }
+    }
+
+    fn as_signed(self) -> XDataI {
+        match self {
+            XData::X32(data) => XDataI::X32(i32::from_ne_bytes(u32::to_ne_bytes(data))),
+            XData::X64(data) => XDataI::X64(i64::from_ne_bytes(u64::to_ne_bytes(data))),
+        }
+    }
+}
+
+impl core::ops::Add<u32> for XData {
+    type Output = XData;
+    fn add(self, rhs: u32) -> Self::Output {
+        match self {
+            XData::X32(u32_val) => 
+                XData::X32(u32_val.wrapping_add(rhs)),
+            XData::X64(u64_val) => 
+                XData::X64(u64_val.wrapping_add(rhs as u64)),
+        }
+    }
+}
+
+impl core::ops::Add<i32> for XData {
+    type Output = XData;
+    fn add(self, rhs: i32) -> Self::Output {
+        match self {
+            XData::X32(u32_val) => 
+                XData::X32(if rhs > 0 {
+                    u32_val.wrapping_add(rhs as u32)
+                } else { 
+                    u32_val.wrapping_sub(rhs.abs() as u32)
+                }),
+            XData::X64(u64_val) => 
+                XData::X64(if rhs > 0 {
+                    u64_val.wrapping_add(rhs as u64)
+                } else { 
+                    u64_val.wrapping_sub(rhs.abs() as u64)
+                }),
+        }
+    }
+}
+
+impl core::ops::AddAssign<i32> for XData {
+    fn add_assign(&mut self, rhs: i32) {
+        match self {
+            XData::X32(u32_val) => 
+                *u32_val = if rhs > 0 {
+                    u32_val.wrapping_add(rhs as u32)
+                } else { 
+                    u32_val.wrapping_sub(rhs.abs() as u32)
+                },
+            XData::X64(u64_val) => 
+                *u64_val = if rhs > 0 {
+                    u64_val.wrapping_add(rhs as u64)
+                } else { 
+                    u64_val.wrapping_sub(rhs.abs() as u64)
+                },
+        }
+    }
 }
 
 pub struct Csr {
@@ -560,7 +776,7 @@ pub struct Csr {
 
 pub struct Execute<'a> {
     data_mem: &'a mut Physical<'a>,
-    xreg: XReg,
+    xreg: Box<XReg>,
     csrs: Box<Csr>,
     xlen: Xlen,
 }
@@ -576,96 +792,111 @@ impl<'a> core::fmt::Debug for Execute<'a> {
 
 impl<'a> Execute<'a> {
     pub fn new(data_mem: &'a mut Physical<'a>, xlen: Xlen) -> Execute<'a> {
-        let x = match xlen {
-            Xlen::X32 => XReg::X32(Box::new([0; 32])),
-            Xlen::X64 => XReg::X64(Box::new([0; 32])),
+        let init = match xlen {
+            Xlen::X32 => XData::X32(0),
+            Xlen::X64 => XData::X64(0),
         };
         Execute { 
             data_mem,
-            xreg: x,
+            xreg: Box::new(XReg { x: [init; 32] }),
             csrs: Box::new(Csr { csr: [0u64; 4096] }),
             xlen
         }
     }
 
-    pub fn execute(&mut self, ins: Instruction, pc: u64, pc_nxt: &mut u64) -> Result<()> {
+    pub fn execute(&mut self, ins: Instruction, pc: XData, pc_nxt: &mut XData) -> Result<()> {
         use {Instruction::*, self::RV32I::*, self::RV64I::*, self::RVZicsr::*};
         match ins {
-            RV32I(Lui(u)) => self.reg_w(u.rd, sext_u32_u64(u.imm_u)),
-            RV32I(Auipc(u)) => self.reg_w(u.rd, pc.wrapping_add(sext_u32_u64(u.imm_u))),
+            RV32I(Lui(u)) => self.xw(u.rd).set_zext_u32(u.imm_u),
+            RV32I(Auipc(u)) => *self.xw(u.rd) = pc + u.imm_u,
             RV32I(Jal(j)) => {
                 let pc_link = *pc_nxt;
-                *pc_nxt = u64_add_i32(pc, j.imm_j);
-                self.reg_w(j.rd, pc_link);
+                *pc_nxt = pc + j.imm_j;
+                *self.xw(j.rd) = pc_link;
             },
             RV32I(Jalr(i)) => {
                 let pc_link = *pc_nxt;
-                *pc_nxt = u64_add_i32(self.reg_r(i.rs1), i.imm_i);
-                self.reg_w(i.rd, pc_link);
+                *pc_nxt = *self.xr(i.rs1) + i.imm_i;
+                *self.xw(i.rd) = pc_link;
             },
             RV32I(Beq(b)) => {
-                if self.reg_r(b.rs1) == self.reg_r(b.rs2) {
-                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                if self.xr(b.rs1) == self.xr(b.rs2) {
+                    *pc_nxt = pc + b.imm_b
                 }
             },
             RV32I(Bne(b)) => {
-                if self.reg_r(b.rs1) != self.reg_r(b.rs2) {
-                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                if self.xr(b.rs1) != self.xr(b.rs2) {
+                    *pc_nxt = pc + b.imm_b
                 }
             },
             RV32I(Blt(b)) => {
-                if self.reg_r_i64(b.rs1) < self.reg_r_i64(b.rs2) {
-                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                if self.xr(b.rs1).as_signed() < self.xr(b.rs2).as_signed() {
+                    *pc_nxt = pc + b.imm_b
                 }
             },
             RV32I(Bge(b)) => {
-                if self.reg_r_i64(b.rs1) >= self.reg_r_i64(b.rs2) {
-                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                if self.xr(b.rs1).as_signed() >= self.xr(b.rs2).as_signed() {
+                    *pc_nxt = pc + b.imm_b
                 }
             },
             RV32I(Bltu(b)) => {
-                if self.reg_r(b.rs1) < self.reg_r(b.rs2) {
-                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                if self.xr(b.rs1) < self.xr(b.rs2) {
+                    *pc_nxt = pc + b.imm_b
                 }
             },
             RV32I(Bgeu(b)) => {
-                if self.reg_r(b.rs1) >= self.reg_r(b.rs2) {
-                    *pc_nxt = u64_add_i32(pc, b.imm_b)
+                if self.xr(b.rs1) >= self.xr(b.rs2) {
+                    *pc_nxt = pc + b.imm_b
                 }
             },
-            RV32I(Lb(i)) => self.reg_w(i.rd, sext_u8_u64(
-                self.data_mem.read_u8(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?)),
-            RV32I(Lh(i)) => self.reg_w(i.rd, sext_u16_u64(
-                self.data_mem.read_u16(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?)),
-            RV32I(Lw(i)) => self.reg_w(i.rd, sext_u32_u64(
-                self.data_mem.read_u32(u64_add_i32(self.reg_r(i.rs1), i.imm_i))?)),
-            RV32I(Lbu(i)) => self.reg_w(i.rd, 
-                self.data_mem.read_u8(u64_add_i32(self.reg_r(i.rs1), i.imm_i))? as u64),
-            RV32I(Lhu(i)) => self.reg_w(i.rd, 
-                self.data_mem.read_u16(u64_add_i32(self.reg_r(i.rs1), i.imm_i))? as u64),
+            RV32I(Lb(i)) => {
+                let addr = (*self.xr(i.rs1) + i.imm_i).to_mem_addr();
+                let data = self.data_mem.read_u8(addr)?;
+                self.xw(i.rd).set_sext_u8(data);
+            },
+            RV32I(Lh(i)) => {
+                let addr = (*self.xr(i.rs1) + i.imm_i).to_mem_addr();
+                let data = self.data_mem.read_u16(addr)?;
+                self.xw(i.rd).set_sext_u16(data);
+            },
+            RV32I(Lw(i)) => {
+                let addr = (*self.xr(i.rs1) + i.imm_i).to_mem_addr();
+                let data = self.data_mem.read_u32(addr)?;
+                self.xw(i.rd).set_sext_u32(data);
+            },
+            RV32I(Lbu(i)) => {
+                let addr = (*self.xr(i.rs1) + i.imm_i).to_mem_addr();
+                let data = self.data_mem.read_u8(addr)?;
+                self.xw(i.rd).set_zext_u8(data);
+            },
+            RV32I(Lhu(i)) => {
+                let addr = (*self.xr(i.rs1) + i.imm_i).to_mem_addr();
+                let data = self.data_mem.read_u16(addr)?;
+                self.xw(i.rd).set_zext_u16(data);
+            },
             RV32I(Sb(s)) => self.data_mem.write_u8(
-                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
-                lowbit_u64_u8(self.reg_r(s.rs2))
+                (*self.xr(s.rs1) + s.imm_s).to_mem_addr(),
+                self.xr(s.rs2).lowbit_u8()
             )?,
             RV32I(Sh(s)) => self.data_mem.write_u16(
-                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
-                lowbit_u64_u16(self.reg_r(s.rs2))
+                (*self.xr(s.rs1) + s.imm_s).to_mem_addr(),
+                self.xr(s.rs2).lowbit_u16()
             )?,
             RV32I(Sw(s)) => self.data_mem.write_u32(
-                u64_add_i32(self.reg_r(s.rs1), s.imm_s),
-                lowbit_u64_u32(self.reg_r(s.rs2))
+                (*self.xr(s.rs1) + s.imm_s).to_mem_addr(),
+                self.xr(s.rs2).lowbit_u32()
             )?,
             RV32I(Addi(i)) => 
-                self.reg_w(i.rd, u64_add_i32(self.reg_r(i.rs1), i.imm_i)),
+                *self.xw(i.rd) = *self.xr(i.rs1) + i.imm_i,
             RV32I(Slti(i)) => {
-                let value = if self.reg_r_i64(i.rs1) < (i.imm_i as i64)
+                let value = if self.xr(i.rs1).as_signed() < i.imm_i
                     { 1 } else { 0 };
-                self.reg_w(i.rd, value);
+                self.xw(i.rd).set_zext_u8(value);
             },
             RV32I(Sltiu(i)) => {
-                let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
-                let value = if self.reg_r(i.rs1) < imm { 1 } else { 0 };
-                self.reg_w(i.rd, value);
+                let imm = u32::from_ne_bytes(i32::to_ne_bytes(i.imm_i));
+                let value = if *self.xr(i.rs1) < imm { 1 } else { 0 };
+                self.xw(i.rd).set_zext_u8(value);
             },
             RV32I(Ori(i)) => {
                 let imm = u64::from_ne_bytes(i64::to_ne_bytes(i.imm_i as i64));
@@ -794,29 +1025,40 @@ impl<'a> Execute<'a> {
         println!("{:?}", self.xreg);
     }
 
+    fn xr(&self, index: u8) -> &XData {
+        &self.xreg.x[index as usize]
+    }
+
+    fn xw(&mut self, index: u8) -> &mut XData {
+        &mut self.xreg.x[index as usize]
+    }
+
     fn reg_r(&self, index: u8) -> u64 {
         if index == 0 { return 0 }
-        match &self.xreg {
-            XReg::X32(x) => x[index as usize] as u64,
-            XReg::X64(x) => x[index as usize],
-        }
+        // match &self.xreg {
+        //     XReg::X32(x) => x[index as usize] as u64,
+        //     XReg::X64(x) => x[index as usize],
+        // }
+        todo!()
     }
 
     fn reg_r_i64(&self, index: u8) -> i64 {
         if index == 0 { return 0 }
-        let data = match &self.xreg {
-            XReg::X32(x) => x[index as usize] as u64,
-            XReg::X64(x) => x[index as usize],
-        };
-        i64::from_ne_bytes(u64::to_ne_bytes(data))
+        // let data = match &self.xreg {
+        //     XReg::X32(x) => x[index as usize] as u64,
+        //     XReg::X64(x) => x[index as usize],
+        // };
+        // i64::from_ne_bytes(u64::to_ne_bytes(data))
+        todo!()
     }
 
     fn reg_w(&mut self, index: u8, data: u64) {
         if index == 0 { return }
-        match &mut self.xreg {
-            XReg::X32(x) => x[index as usize] = data as u32,
-            XReg::X64(x) => x[index as usize] = data,
-        }
+        // match &mut self.xreg {
+        //     XReg::X32(x) => x[index as usize] = data as u32,
+        //     XReg::X64(x) => x[index as usize] = data,
+        // }
+        todo!()
     }
 
     fn csr_r(&self, csr: u16) -> u64 {
