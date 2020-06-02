@@ -6,7 +6,7 @@ mod size;
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
 use mem64::{Endian, Physical, Protect, Config};
-use riscv::{fetch::Fetch, exec::Execute, Xlen};
+use riscv::{Fetch, Execute, Xlen};
 use size::Usize;
 
 fn main() {
