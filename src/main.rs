@@ -39,11 +39,6 @@ fn main() {
             panic!("unsupported elf type: {:?}!", fallback);
         }
     }
-    let entry_addr = matches.value_of("pc")
-        .map(|s| u64::from_str_radix(s, 16).expect("convert input pc value"))
-        .unwrap_or(elf_file.header.pt2.entry_point());
-    println!("Entry point: 0x{:016X}", entry_addr);
-    let mut mem = Physical::new();
     let endian = match elf_file.header.pt1.data.as_data() {
         header::Data::BigEndian => Endian::Big,
         header::Data::LittleEndian => Endian::Little,
@@ -54,6 +49,7 @@ fn main() {
         header::Class::SixtyFour => Xlen::X64,
         _ => panic!("unsupported xlen")
     };
+    let mut mem = Physical::new();
     for program_header in elf_file.program_iter() {
         if program_header.get_type() != Ok(program::Type::Load) {
             continue;
@@ -88,10 +84,17 @@ fn main() {
     let mem = &mut mem as *mut _; // todo!
     let mut fetch = Fetch::new(unsafe { &*mem }, xlen); 
     let mut exec = Execute::new(unsafe { &mut *mem }, xlen);
-    let mut pc = match xlen {
-        Xlen::X32 => Usize::U32(entry_addr as u32),
-        Xlen::X64 => Usize::U64(entry_addr),
-    };
+    let entry_addr = matches.value_of("pc")
+        .map(|s| match xlen {
+            Xlen::X32 => Usize::U32(u32::from_str_radix(s, 16).expect("convert input pc value")),
+            Xlen::X64 => Usize::U64(u64::from_str_radix(s, 16).expect("convert input pc value")),
+        })
+        .unwrap_or(match xlen {
+            Xlen::X32 => Usize::U32(elf_file.header.pt2.entry_point() as u32),
+            Xlen::X64 => Usize::U64(elf_file.header.pt2.entry_point()),
+        });
+    println!("Entry point: 0x{:016X}", entry_addr);
+    let mut pc = entry_addr;
     for _ in 0..10 {
         let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
         println!("{:?}", ins);

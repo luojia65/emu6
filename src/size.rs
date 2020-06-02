@@ -3,6 +3,7 @@ pub enum Usize {
     U32(u32),
     U64(u64),
 }
+
 impl Usize {
     pub fn low32(&self) -> u32 {
         match self {
@@ -17,6 +18,24 @@ impl core::fmt::Debug for Usize {
         match self {
             Usize::U32(a) => f.write_fmt(format_args!("{}", a)),
             Usize::U64(a) => f.write_fmt(format_args!("{}", a)),
+        }
+    }
+}
+
+impl core::fmt::UpperHex for Usize {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Usize::U32(a) => core::fmt::UpperHex::fmt(&a, f),
+            Usize::U64(a) => core::fmt::UpperHex::fmt(&a, f),
+        }
+    }
+}
+
+impl core::fmt::LowerHex for Usize {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Usize::U32(a) => core::fmt::LowerHex::fmt(&a, f),
+            Usize::U64(a) => core::fmt::LowerHex::fmt(&a, f),
         }
     }
 }

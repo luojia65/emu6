@@ -113,11 +113,11 @@ impl<'a> Fetch<'a> {
 
 #[derive(Error, Clone, Debug)]
 pub enum FetchError {
-    #[error("Illegal 16-bit instruction 0x{ins:04X} at address: 0x{addr:?} ")]
+    #[error("Illegal 16-bit instruction 0x{ins:04X} at address: 0x{addr:X} ")]
     IllegalInstruction16 { addr: Usize, ins: u16 },
-    #[error("Illegal 32-bit instruction 0x{ins:08X} at address: 0x{addr:?} ")]
+    #[error("Illegal 32-bit instruction 0x{ins:08X} at address: 0x{addr:X} ")]
     IllegalInstruction32 { addr: Usize, ins: u32 },
-    #[error("Illegal instruction at address: 0x{addr:?}; length over 32-bit is not supported")]
+    #[error("Illegal instruction at address: 0x{addr:X}; length over 32-bit is not supported")]
     InstructionLength { addr: Usize },
 }
 
