@@ -1,7 +1,6 @@
 use crate::size::{Usize, Isize};
 use super::Xlen;
 
-#[derive(Debug)]
 pub struct XReg {
     x: [Usize; 32],
 }
@@ -109,6 +108,12 @@ impl XReg {
             Usize::U32(_) => panic!("cannot write 64-bit value into 32-bit registers"),
             Usize::U64(data) => *data = val,
         }
+    }
+}
+
+impl core::fmt::Debug for XReg {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        f.debug_list().entries(self.x.iter()).finish()
     }
 }
 

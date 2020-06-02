@@ -1,13 +1,13 @@
 use super::Xlen;
 use crate::size::{Isize, Usize};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Imm {
     data: u32,
     valid_bits: u8,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy)]
 pub struct Uimm {
     data: u32,
     valid_bits: u8,
@@ -75,4 +75,18 @@ impl Uimm {
             Xlen::X64 => Usize::U64((self.data & MASK32[self.valid_bits as usize]) as u64),
         }
     }  
+}
+
+impl core::fmt::Debug for Imm {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let num = self.data & MASK32[self.valid_bits as usize]; 
+        f.write_fmt(format_args!("{}", i32::from_ne_bytes(u32::to_ne_bytes(num))))
+    }
+}
+
+impl core::fmt::Debug for Uimm {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let num = self.data & MASK32[self.valid_bits as usize]; 
+        f.write_fmt(format_args!("{}", num))
+    }
 }

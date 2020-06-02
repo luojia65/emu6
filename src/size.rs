@@ -1,14 +1,22 @@
-#[derive(Debug, Clone, Copy, Ord, Eq, PartialEq)]
+#[derive(Clone, Copy, Ord, Eq, PartialEq)]
 pub enum Usize {
     U32(u32),
     U64(u64),
 }
-
 impl Usize {
     pub fn low32(&self) -> u32 {
         match self {
             Usize::U32(a) => *a,
             Usize::U64(a) => (*a & 0xFFFFFFFF) as u32,
+        }
+    }
+}
+
+impl core::fmt::Debug for Usize {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Usize::U32(a) => f.write_fmt(format_args!("{}", a)),
+            Usize::U64(a) => f.write_fmt(format_args!("{}", a)),
         }
     }
 }
@@ -188,10 +196,19 @@ impl core::ops::AddAssign<u32> for Usize {
     }
 }
 
-#[derive(Debug, Clone, Copy, Ord, Eq, PartialEq)]
+#[derive(Clone, Copy, Ord, Eq, PartialEq)]
 pub enum Isize {
     I32(i32),
     I64(i64),
+}
+
+impl core::fmt::Debug for Isize {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Isize::I32(a) => f.write_fmt(format_args!("{}", a)),
+            Isize::I64(a) => f.write_fmt(format_args!("{}", a)),
+        }
+    }
 }
 
 impl Isize {
