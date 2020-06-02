@@ -2,6 +2,10 @@
 
 Very simple RISC-V emulator. Reads ELF file and execute in emulator.
 
+The target of this project is to support emulating heterogeneous CPUs and multiple
+peripherals. For example it's expected to support one Cortex-M and one RISC-V core
+sharing same memory region. And we target to support custom peripherals.
+
 ## Usage
 
 Basic usage with an interactive debug console:
