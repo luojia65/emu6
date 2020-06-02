@@ -1,11 +1,13 @@
 mod mem64;
 mod riscv;
 mod error;
+mod size;
 
 use clap::{Arg, App, crate_description, crate_authors, crate_version};
 use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
 use mem64::{Endian, Physical, Protect, Config};
-use riscv::{Fetch, Execute, Xlen, XData};
+use riscv::{fetch::Fetch, exec::Execute, Xlen};
+use size::Usize;
 
 fn main() {
     let matches = App::new("emu6")
@@ -87,8 +89,8 @@ fn main() {
     let mut fetch = Fetch::new(unsafe { &*mem }, xlen); 
     let mut exec = Execute::new(unsafe { &mut *mem }, xlen);
     let mut pc = match xlen {
-        Xlen::X32 => XData::X32(entry_addr as u32),
-        Xlen::X64 => XData::X64(entry_addr),
+        Xlen::X32 => Usize::U32(entry_addr as u32),
+        Xlen::X64 => Usize::U64(entry_addr),
     };
     for _ in 0..10 {
         let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();

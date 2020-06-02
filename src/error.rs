@@ -1,6 +1,6 @@
 use thiserror::Error;
 use crate::mem64::MemError as Mem64Error;
-use crate::riscv::FetchError;
+use crate::riscv::fetch::FetchError;
 
 #[derive(Error, Debug)]
 pub enum Error {
