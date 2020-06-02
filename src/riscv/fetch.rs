@@ -67,6 +67,7 @@ const FUNCT3_MISC_MEM_FENCE: u8 = 0b000;
 use crate::error::Result;
 use crate::size::Usize;
 use super::Xlen;
+use super::imm::{Imm, Uimm};
 use crate::mem64::Physical;
 use thiserror::Error;
 
@@ -141,49 +142,36 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     let funct7 = ((ins >> 25) & 0b111_1111) as u8;
     let funct12 = (ins >> 20) & 0b1111_1111_1111;
     let imm_i = {
-        let mut val = (ins >> 20) & 0b1111_1111_1111;
-        if (ins >> 31) != 0 {
-            val |= 0b1111_1111_1111_1111_1111_0000_0000_0000
-        }
-        i32::from_ne_bytes(u32::to_ne_bytes(val))
+        let val = (ins >> 20) & 0b1111_1111_1111;
+        Imm::new(val, 12)
     };
     let imm_s = {
-        let mut val = ((ins >> 7) & 0b11111) | 
+        let val = ((ins >> 7) & 0b11111) | 
             (((ins >> 25) & 0b1111111) << 5);
-        if (ins >> 31) != 0 {
-            val |= 0b1111_1111_1111_1111_1111_0000_0000_0000
-        }
-        i32::from_ne_bytes(u32::to_ne_bytes(val))
+        Imm::new(val, 12)
     };
     let imm_b = {
-        let mut val = (((ins >> 7) & 0b1) << 11) |
+        let val = (((ins >> 7) & 0b1) << 11) |
             (((ins >> 8) & 0b1111) << 1) | 
             (((ins >> 25) & 0b111111) << 5) |
             (((ins >> 31) & 0b1) << 12);
-        if ins >> 31 != 0 { 
-            val |= 0b1111_1111_1111_1111_1111_0000_0000_0000
-        }
-        i32::from_ne_bytes(u32::to_ne_bytes(val))
+        Imm::new(val, 12)
     };
-    let imm_u = ins & 0b1111_1111_1111_1111_1111_0000_0000_0000;
+    let imm_u = Uimm::new(ins & 0xFFFFF000, 32);
     let imm_j = {
-        let mut val = (if ins & 0b1000_0000_0000_0000_0000_0000_0000_0000 != 0 {
-            0b1111_1111_1111_0000_0000_0000_0000_0000
-        } else { 0 }) | 
-        (((ins & 0b0111_1111_1110_0000_0000_0000_0000_0000) >> 21) << 1) | 
-        (((ins & 0b0000_0000_0001_0000_0000_0000_0000_0000) >> 20) << 11) | 
-        (((ins & 0b0000_0000_0000_1111_1111_0000_0000_0000) >> 12) << 12);
-        if ins >> 31 != 0 { 
-            val |= 0b1111_1111_1111_1111_1111_0000_0000_0000
-        }
-        i32::from_ne_bytes(u32::to_ne_bytes(val))
+        let val = 
+            (((ins & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31) << 20) | 
+            (((ins & 0b0111_1111_1110_0000_0000_0000_0000_0000) >> 21) << 1) | 
+            (((ins & 0b0000_0000_0001_0000_0000_0000_0000_0000) >> 20) << 11) | 
+            (((ins & 0b0000_0000_0000_1111_1111_0000_0000_0000) >> 12) << 12);
+        Imm::new(val, 12)
     };
     let csr = ((ins >> 20) & 0xFFF) as u16;
-    let u_type = UType { rd, imm_u }; 
-    let j_type = JType { rd, imm_j };
-    let b_type = BType { rs1, rs2, funct3, imm_b };
-    let i_type = IType { rd, rs1, funct3, imm_i };
-    let s_type = SType { rs1, rs2, funct3, imm_s };
+    let u_type = UType { rd, imm: imm_u }; 
+    let j_type = JType { rd, imm: imm_j };
+    let b_type = BType { rs1, rs2, funct3, imm: imm_b };
+    let i_type = IType { rd, rs1, funct3, imm: imm_i };
+    let s_type = SType { rs1, rs2, funct3, imm: imm_s };
     let r_type = RType { rd, rs1, rs2, funct3, funct7 };
     let csr_type = CsrType { rd, rs1uimm: rs1, funct3, csr };
     let ans = match opcode {
@@ -422,13 +410,13 @@ pub enum RV64I {
 #[derive(Debug, Clone, Copy)]
 pub struct UType {
     pub rd: u8,
-    pub imm_u: u32,
+    pub imm: Uimm,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct JType {
     pub rd: u8,
-    pub imm_j: i32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -436,7 +424,7 @@ pub struct IType {
     pub rd: u8,
     pub rs1: u8,
     pub funct3: u8,
-    pub imm_i: i32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -444,7 +432,7 @@ pub struct SType {
     pub rs1: u8,
     pub rs2: u8,
     pub funct3: u8,
-    pub imm_s: i32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -452,7 +440,7 @@ pub struct BType {
     pub rs1: u8,
     pub rs2: u8,
     pub funct3: u8,
-    pub imm_b: i32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]

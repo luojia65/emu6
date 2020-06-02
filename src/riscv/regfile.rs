@@ -22,8 +22,8 @@ impl XReg {
     }
     pub fn r_isize(&self, idx: u8) -> Isize {
         match self.r_usize(idx) {
-            Usize::U32(data) => Isize::U32(i32::from_ne_bytes(u32::to_ne_bytes(data))),
-            Usize::U64(data) => Isize::U64(i64::from_ne_bytes(u64::to_ne_bytes(data))),
+            Usize::U32(data) => Isize::I32(i32::from_ne_bytes(u32::to_ne_bytes(data))),
+            Usize::U64(data) => Isize::I64(i64::from_ne_bytes(u64::to_ne_bytes(data))),
         }
     }
     pub fn r_low8(&self, idx: u8) -> u8 {
@@ -46,12 +46,15 @@ impl XReg {
     }
     pub fn r_low64(&self, idx: u8) -> u64 {
         match self.x[idx as usize] {
-            Usize::U32(data) => panic!("cannot read 64-bit value from 32-bit register"),
+            Usize::U32(_) => panic!("cannot read 64-bit value from 32-bit register"),
             Usize::U64(data) => data,
         }
     }
     pub fn w_usize(&mut self, idx: u8, val: Usize) {
         self.x[idx as usize] = val;
+    }
+    pub fn w_isize(&mut self, idx: u8, val: Isize) {
+        self.x[idx as usize] = val.cast_to_usize();
     }
     pub fn w_zext8(&mut self, idx: u8, val: u8) {
         match &mut self.x[idx as usize] {
@@ -71,12 +74,13 @@ impl XReg {
             Usize::U64(data) => *data = val as u64,
         }
     }
-    pub fn w_zext64(&mut self, idx: u8, val: u64) {
-        match &mut self.x[idx as usize] {
-            Usize::U32(data) => panic!("cannot write 64-bit value into 32-bit register"),
-            Usize::U64(data) => *data = val,
-        }
-    }
+    // useful for xlen==X128
+    // pub fn w_zext64(&mut self, idx: u8, val: u64) {
+    //     match &mut self.x[idx as usize] {
+    //         Usize::U32(_) => panic!("cannot write 64-bit value into 32-bit register"),
+    //         Usize::U64(data) => *data = val,
+    //     }
+    // }
     pub fn w_sext8(&mut self, idx: u8, val: u8) {
         match &mut self.x[idx as usize] {
             Usize::U32(data) => 
@@ -102,7 +106,7 @@ impl XReg {
     }
     pub fn w_sext64(&mut self, idx: u8, val: u64) {
         match &mut self.x[idx as usize] {
-            Usize::U32(data) => panic!("cannot write 64-bit value into 32-bit registers"),
+            Usize::U32(_) => panic!("cannot write 64-bit value into 32-bit registers"),
             Usize::U64(data) => *data = val,
         }
     }
