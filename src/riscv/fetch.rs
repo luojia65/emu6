@@ -1,69 +1,3 @@
-const OPCODE_LOAD: u32 =     0b000_0011; 
-const OPCODE_MISC_MEM: u32 = 0b000_1111;
-const OPCODE_OP_IMM: u32 =   0b001_0011; 
-const OPCODE_AUIPC: u32 =    0b001_0111; 
-const OPCODE_OP_IMM32: u32 = 0b001_1011; 
-const OPCODE_STORE: u32 =    0b010_0011; 
-const OPCODE_OP: u32 =       0b011_0011; 
-const OPCODE_LUI: u32 =      0b011_0111; 
-const OPCODE_OP_32: u32 =    0b011_1011; 
-const OPCODE_BRANCH: u32 =   0b110_0011; 
-const OPCODE_JALR: u32 =     0b110_0111; 
-const OPCODE_JAL: u32 =      0b110_1111;
-const OPCODE_SYSTEM: u32 =   0b111_0011; 
-
-const OPCODE_C0: u16 =  0b00;
-const OPCODE_C1: u16 =  0b01;
-const OPCODE_C2: u16 =  0b10;
-
-const FUNCT3_LOAD_LB: u8 = 0b000;
-const FUNCT3_LOAD_LH: u8 = 0b001;
-const FUNCT3_LOAD_LW: u8 = 0b010;
-const FUNCT3_LOAD_LD: u8 = 0b011;
-const FUNCT3_LOAD_LBU: u8 = 0b100;
-const FUNCT3_LOAD_LHU: u8 = 0b101;
-const FUNCT3_LOAD_LWU: u8 = 0b110;
-
-const FUNCT3_STORE_SB: u8 = 0b000;
-const FUNCT3_STORE_SH: u8 = 0b001;
-const FUNCT3_STORE_SW: u8 = 0b010;
-const FUNCT3_STORE_SD: u8 = 0b011;
-
-const FUNCT3_BRANCH_BEQ: u8 = 0b000;
-const FUNCT3_BRANCH_BNE: u8 = 0b001;
-const FUNCT3_BRANCH_BLT: u8 = 0b100;
-const FUNCT3_BRANCH_BGE: u8 = 0b101;
-const FUNCT3_BRANCH_BLTU: u8 = 0b110;
-const FUNCT3_BRANCH_BGEU: u8 = 0b111;
-
-const FUNCT3_OP_ADD_SUB: u8 = 0b000;
-const FUNCT3_OP_SLL: u8   = 0b001;
-const FUNCT3_OP_SLT: u8   = 0b010;
-const FUNCT3_OP_SLTU: u8  = 0b011;
-const FUNCT3_OP_XOR: u8   = 0b100;
-const FUNCT3_OP_SRL_SRA: u8 = 0b101;
-const FUNCT3_OP_OR: u8    = 0b110;
-const FUNCT3_OP_AND: u8   = 0b111;
-
-const FUNCT7_OP_SRL: u8 = 0b000_0000;
-const FUNCT7_OP_SRA: u8 = 0b010_0000;
-
-const FUNCT7_OP_ADD: u8 = 0b000_0000;
-const FUNCT7_OP_SUB: u8 = 0b010_0000;
-
-const FUNCT3_SYSTEM_PRIV: u8   = 0b000;
-const FUNCT3_SYSTEM_CSRRW: u8  = 0b001;
-const FUNCT3_SYSTEM_CSRRS: u8  = 0b010;
-const FUNCT3_SYSTEM_CSRRC: u8  = 0b011;
-const FUNCT3_SYSTEM_CSRRWI: u8 = 0b101;
-const FUNCT3_SYSTEM_CSRRSI: u8 = 0b110;
-const FUNCT3_SYSTEM_CSRRCI: u8 = 0b111;
-
-const FUNCT12_SYSTEM_ECALL: u32  = 0b000;
-const FUNCT12_SYSTEM_EBREAK: u32 = 0b001;
-
-const FUNCT3_MISC_MEM_FENCE: u8 = 0b000;
-
 use crate::error::Result;
 use crate::size::Usize;
 use super::Xlen;
@@ -121,16 +55,82 @@ pub enum FetchError {
     InstructionLength { addr: Usize },
 }
 
+const OPCODE_C0: u16 =  0b00;
+const OPCODE_C1: u16 =  0b01;
+const OPCODE_C2: u16 =  0b10;
+
 fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     use self::RVC::*;
     let opcode = ins & 0b11;
     let funct3 = ((ins >> 13) & 0b111) as u8; // keep 0b111 to be explict (actually do not need to & 0b111)
     match (opcode, funct3) {
-        
+        (OPCODE_C0, 0) => {},
         _ => Err(())?
     }
     todo!()
 }
+
+const OPCODE_LOAD: u32 =     0b000_0011; 
+const OPCODE_MISC_MEM: u32 = 0b000_1111;
+const OPCODE_OP_IMM: u32 =   0b001_0011; 
+const OPCODE_AUIPC: u32 =    0b001_0111; 
+const OPCODE_OP_IMM32: u32 = 0b001_1011; 
+const OPCODE_STORE: u32 =    0b010_0011; 
+const OPCODE_OP: u32 =       0b011_0011; 
+const OPCODE_LUI: u32 =      0b011_0111; 
+const OPCODE_OP_32: u32 =    0b011_1011; 
+const OPCODE_BRANCH: u32 =   0b110_0011; 
+const OPCODE_JALR: u32 =     0b110_0111; 
+const OPCODE_JAL: u32 =      0b110_1111;
+const OPCODE_SYSTEM: u32 =   0b111_0011; 
+
+const FUNCT3_LOAD_LB: u8 = 0b000;
+const FUNCT3_LOAD_LH: u8 = 0b001;
+const FUNCT3_LOAD_LW: u8 = 0b010;
+const FUNCT3_LOAD_LD: u8 = 0b011;
+const FUNCT3_LOAD_LBU: u8 = 0b100;
+const FUNCT3_LOAD_LHU: u8 = 0b101;
+const FUNCT3_LOAD_LWU: u8 = 0b110;
+
+const FUNCT3_STORE_SB: u8 = 0b000;
+const FUNCT3_STORE_SH: u8 = 0b001;
+const FUNCT3_STORE_SW: u8 = 0b010;
+const FUNCT3_STORE_SD: u8 = 0b011;
+
+const FUNCT3_BRANCH_BEQ: u8 = 0b000;
+const FUNCT3_BRANCH_BNE: u8 = 0b001;
+const FUNCT3_BRANCH_BLT: u8 = 0b100;
+const FUNCT3_BRANCH_BGE: u8 = 0b101;
+const FUNCT3_BRANCH_BLTU: u8 = 0b110;
+const FUNCT3_BRANCH_BGEU: u8 = 0b111;
+
+const FUNCT3_OP_ADD_SUB: u8 = 0b000;
+const FUNCT3_OP_SLL: u8   = 0b001;
+const FUNCT3_OP_SLT: u8   = 0b010;
+const FUNCT3_OP_SLTU: u8  = 0b011;
+const FUNCT3_OP_XOR: u8   = 0b100;
+const FUNCT3_OP_SRL_SRA: u8 = 0b101;
+const FUNCT3_OP_OR: u8    = 0b110;
+const FUNCT3_OP_AND: u8   = 0b111;
+
+const FUNCT7_OP_SRL: u8 = 0b000_0000;
+const FUNCT7_OP_SRA: u8 = 0b010_0000;
+
+const FUNCT7_OP_ADD: u8 = 0b000_0000;
+const FUNCT7_OP_SUB: u8 = 0b010_0000;
+
+const FUNCT3_SYSTEM_PRIV: u8   = 0b000;
+const FUNCT3_SYSTEM_CSRRW: u8  = 0b001;
+const FUNCT3_SYSTEM_CSRRS: u8  = 0b010;
+const FUNCT3_SYSTEM_CSRRC: u8  = 0b011;
+const FUNCT3_SYSTEM_CSRRWI: u8 = 0b101;
+const FUNCT3_SYSTEM_CSRRSI: u8 = 0b110;
+const FUNCT3_SYSTEM_CSRRCI: u8 = 0b111;
+
+const FUNCT12_SYSTEM_ECALL: u32  = 0b000;
+const FUNCT12_SYSTEM_EBREAK: u32 = 0b001;
+
+const FUNCT3_MISC_MEM_FENCE: u8 = 0b000;
 
 fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     use {self::RV32I::*, self::RV64I::*, self::RVZicsr::*};
@@ -454,7 +454,57 @@ pub struct RType {
 
 #[derive(Debug, Clone, Copy)]
 pub enum RVC {
-    
+    Caddi4spn(CIWType),
+    Cfld(CLType),
+    Clq(CLType),
+    Clw(CLType),
+    Cflw(CLType),
+    Cld(CLType),
+    Cfsd(CSType),
+    Csq(CSType),
+    Csw(CSType),
+    Cfsw(CSType),
+    Csd(CSType),
+
+    Cnop(CIType),
+    Caddi(CIType),
+    Cjal(CJType),
+    Caddiw(CIType),
+    Cli(CIType),
+    Caddi16sp(CIType),
+    Clui(CIType), //?
+    Csrli(CAType), //?
+    Csrli64(CAType), //?
+    Csrai(CAType), //?
+    Csrai64(CAType), //?
+    Candi(CAType), //?
+    Csub(CAType),
+    Cxor(CAType),
+    Cor(CAType),
+    Cand(CAType),
+    Csubw(CAType),
+    Caddw(CAType),
+    Cj(CJType),
+    Cbeqz(CBType),
+    Cbnez(CBType),
+
+    Cslli(CIType),
+    Cslli64(CIType),
+    Cfldsp(CIType),
+    Clqsp(CIType),
+    Clwsp(CIType),
+    Cflwsp(CIType),
+    Cldsp(CIType),
+    Cjr(CRType),
+    Cmv(CRType),
+    Cebreak(CRType),
+    Cjalr(CRType),
+    Cadd(CRType),
+    Cfsdsp(CSSType),
+    Csqsp(CSSType),
+    Cswsp(CSSType),
+    Cfswsp(CSSType),
+    Csdsp(CSSType),
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -468,21 +518,21 @@ pub struct CRType {
 pub struct CIType {
     pub rdrs1: u8,
     pub funct3: u8,
-    pub imm_ci: u32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CSSType {
     pub rdrs1: u8,
     pub funct3: u8,
-    pub imm_css: u32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct CIWType {
     pub rd: u8,
     pub funct3: u8,
-    pub imm_ciw: u32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -490,7 +540,7 @@ pub struct CLType {
     pub rd: u8,
     pub rs1: u8,
     pub funct3: u8,
-    pub imm_cl: u32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -498,7 +548,7 @@ pub struct CSType {
     pub rs1: u8,
     pub rs2: u8,
     pub funct3: u8,
-    pub imm_cs: u32,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -513,7 +563,7 @@ pub struct CAType {
 pub struct CBType {
     pub rs1: u8,
     pub funct3: u8,
-    pub off: u32,
+    pub off: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]

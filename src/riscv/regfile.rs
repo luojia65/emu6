@@ -50,24 +50,29 @@ impl XReg {
         }
     }
     pub fn w_usize(&mut self, idx: u8, val: Usize) {
+        if idx == 0 { return }
         self.x[idx as usize] = val;
     }
     pub fn w_isize(&mut self, idx: u8, val: Isize) {
+        if idx == 0 { return }
         self.x[idx as usize] = val.cast_to_usize();
     }
     pub fn w_zext8(&mut self, idx: u8, val: u8) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val as u32,
             Usize::U64(data) => *data = val as u64,
         }
     }
     pub fn w_zext16(&mut self, idx: u8, val: u16) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val as u32,
             Usize::U64(data) => *data = val as u64,
         }
     }
     pub fn w_zext32(&mut self, idx: u8, val: u32) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val,
             Usize::U64(data) => *data = val as u64,
@@ -75,12 +80,14 @@ impl XReg {
     }
     // useful for xlen==X128
     // pub fn w_zext64(&mut self, idx: u8, val: u64) {
+    //     if idx == 0 { return }
     //     match &mut self.x[idx as usize] {
     //         Usize::U32(_) => panic!("cannot write 64-bit value into 32-bit register"),
     //         Usize::U64(data) => *data = val,
     //     }
     // }
     pub fn w_sext8(&mut self, idx: u8, val: u8) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => 
                 *data = (val as u32) | if (val >> 7) != 0 { 0xFFFFFF00 } else { 0 },
@@ -89,6 +96,7 @@ impl XReg {
         }
     }
     pub fn w_sext16(&mut self, idx: u8, val: u16) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => 
                 *data = (val as u32) | if (val >> 15) != 0 { 0xFFFF0000 } else { 0 },
@@ -97,6 +105,7 @@ impl XReg {
         }
     }
     pub fn w_sext32(&mut self, idx: u8, val: u32) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val,
             Usize::U64(data) => 
@@ -104,6 +113,7 @@ impl XReg {
         }
     }
     pub fn w_sext64(&mut self, idx: u8, val: u64) {
+        if idx == 0 { return }
         match &mut self.x[idx as usize] {
             Usize::U32(_) => panic!("cannot write 64-bit value into 32-bit registers"),
             Usize::U64(data) => *data = val,

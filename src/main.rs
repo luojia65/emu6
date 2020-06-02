@@ -93,7 +93,7 @@ fn main() {
             Xlen::X32 => Usize::U32(elf_file.header.pt2.entry_point() as u32),
             Xlen::X64 => Usize::U64(elf_file.header.pt2.entry_point()),
         });
-    println!("Entry point: 0x{:016X}", entry_addr);
+    println!("Entry point: {:#016X}", entry_addr);
     let mut pc = entry_addr;
     for _ in 0..10 {
         let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
