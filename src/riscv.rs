@@ -71,7 +71,7 @@ use thiserror::Error;
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Xlen {
     X32,
-    X64
+    X64,
 }
 
 pub struct Fetch<'a> {
@@ -118,6 +118,12 @@ pub enum FetchError {
 
 fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     use self::RVC::*;
+    let opcode = ins & 0b11;
+    let funct3 = ((ins >> 13) & 0b111) as u8; // keep 0b111 to be explict (actually do not need to & 0b111)
+    match (opcode, funct3) {
+        
+        _ => Err(())?
+    }
     todo!()
 }
 
@@ -543,8 +549,9 @@ pub struct CsrType {
 }
 
 #[derive(Debug)]
-pub struct IntRegister {
-    x: [u64; 32],
+pub enum XReg {
+    X32(Box<[u32; 32]>),
+    X64(Box<[u64; 32]>),
 }
 
 pub struct Csr {
@@ -553,7 +560,7 @@ pub struct Csr {
 
 pub struct Execute<'a> {
     data_mem: &'a mut Physical<'a>,
-    regs: Box<IntRegister>,
+    xreg: XReg,
     csrs: Box<Csr>,
     xlen: Xlen,
 }
@@ -561,7 +568,7 @@ pub struct Execute<'a> {
 impl<'a> core::fmt::Debug for Execute<'a> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_struct("Execute")
-            .field("regs", &self.regs)
+            .field("x", &self.xreg)
             .field("xlen", &self.xlen)
             .finish()
     }
@@ -569,9 +576,13 @@ impl<'a> core::fmt::Debug for Execute<'a> {
 
 impl<'a> Execute<'a> {
     pub fn new(data_mem: &'a mut Physical<'a>, xlen: Xlen) -> Execute<'a> {
+        let x = match xlen {
+            Xlen::X32 => XReg::X32(Box::new([0; 32])),
+            Xlen::X64 => XReg::X64(Box::new([0; 32])),
+        };
         Execute { 
             data_mem,
-            regs: Box::new(IntRegister { x: [0u64; 32] }),
+            xreg: x,
             csrs: Box::new(Csr { csr: [0u64; 4096] }),
             xlen
         }
@@ -780,27 +791,31 @@ impl<'a> Execute<'a> {
     }
 
     pub(crate) fn dump_regs(&self) {
-        println!("{:?}", self.regs);
+        println!("{:?}", self.xreg);
     }
 
     fn reg_r(&self, index: u8) -> u64 {
         if index == 0 { return 0 }
-        match self.xlen {
-            Xlen::X32 => self.regs.x[index as usize] & 0xFFFFFFFF,
-            Xlen::X64 => self.regs.x[index as usize],
+        match &self.xreg {
+            XReg::X32(x) => x[index as usize] as u64,
+            XReg::X64(x) => x[index as usize],
         }
     }
 
     fn reg_r_i64(&self, index: u8) -> i64 {
         if index == 0 { return 0 }
-        i64::from_ne_bytes(u64::to_ne_bytes(self.regs.x[index as usize]))
+        let data = match &self.xreg {
+            XReg::X32(x) => x[index as usize] as u64,
+            XReg::X64(x) => x[index as usize],
+        };
+        i64::from_ne_bytes(u64::to_ne_bytes(data))
     }
 
     fn reg_w(&mut self, index: u8, data: u64) {
         if index == 0 { return }
-        match self.xlen {
-            Xlen::X32 => self.regs.x[index as usize] = data & 0xFFFFFFFF,
-            Xlen::X64 => self.regs.x[index as usize] = data,
+        match &mut self.xreg {
+            XReg::X32(x) => x[index as usize] = data as u32,
+            XReg::X64(x) => x[index as usize] = data,
         }
     }
 
