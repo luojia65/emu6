@@ -88,10 +88,12 @@ fn main() {
         .map(|s| match xlen {
             Xlen::X32 => Usize::U32(u32::from_str_radix(s, 16).expect("convert input pc value")),
             Xlen::X64 => Usize::U64(u64::from_str_radix(s, 16).expect("convert input pc value")),
+            Xlen::X128 => panic!("Unsupported")
         })
         .unwrap_or(match xlen {
             Xlen::X32 => Usize::U32(elf_file.header.pt2.entry_point() as u32),
             Xlen::X64 => Usize::U64(elf_file.header.pt2.entry_point()),
+            Xlen::X128 => panic!("Unsupported")
         });
     println!("Entry point: {:#016X}", entry_addr);
     let mut pc = entry_addr;

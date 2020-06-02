@@ -56,6 +56,7 @@ impl Imm {
                 }
                 Isize::I64(i64::from_ne_bytes(u64::to_ne_bytes(ans)))
             },
+            Xlen::X128 => panic!("Unsupported")
         }
     }  
 
@@ -73,6 +74,7 @@ impl Uimm {
         match xlen {
             Xlen::X32 => Usize::U32(self.data & MASK32[self.valid_bits as usize]),
             Xlen::X64 => Usize::U64((self.data & MASK32[self.valid_bits as usize]) as u64),
+            Xlen::X128 => panic!("Unsupported")
         }
     }  
 }

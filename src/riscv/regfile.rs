@@ -10,6 +10,7 @@ impl XReg {
         let init = match xlen {
             Xlen::X32 => Usize::U32(0),
             Xlen::X64 => Usize::U64(0),
+            Xlen::X128 => panic!("Unsupported")
         };
         XReg { x: [init; 32] }
     }

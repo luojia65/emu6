@@ -20,6 +20,7 @@ RISC-V instruction set and features:
 
 - [x] RV32I
 - [x] RV64I
+- [ ] RV128I
 - [ ] Extension M
 - [ ] Extension A
 - [ ] Extension F
@@ -27,7 +28,11 @@ RISC-V instruction set and features:
 - [ ] Extension C
 - [ ] Extension V
 - [x] Zicsr
+- [ ] Zifencei
+- [ ] User mode
+- [ ] Supervisor mode
 - [ ] Sv32
 - [ ] Sv39
+- [ ] Sv48
 - [ ] PLIC
 - [ ] CLINT

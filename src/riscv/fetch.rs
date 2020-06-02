@@ -60,14 +60,84 @@ const OPCODE_C1: u16 =  0b01;
 const OPCODE_C2: u16 =  0b10;
 
 fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
-    use self::RVC::*;
+    use {Instruction::*, self::RVC::*};
     let opcode = ins & 0b11;
     let funct3 = ((ins >> 13) & 0b111) as u8; // keep 0b111 to be explict (actually do not need to & 0b111)
-    match (opcode, funct3) {
-        (OPCODE_C0, 0) => {},
+    
+    let nzuimm549623 = (((ins >> 11) & 0b11) << 4) | (((ins >> 7) & 0b1111) << 6) |
+        (((ins >> 6) & 0b1) << 2) | (((ins >> 5) & 0b1) << 3);
+    let uimm5376 = (((ins >> 10) & 0b111) << 3) | (((ins >> 5) & 0b11) << 6);
+    let uimm54876 = (((ins >> 11) & 0b11) << 4) | (((ins >> 10) & 0b1) << 8) | (((ins >> 5) & 0b11) << 6);
+    let uimm5326 = (((ins >> 11) & 0b111) << 3) | (((ins >> 5) & 0b1) << 6) | (((ins >> 6) & 0b1) << 2);
+    let nzuimm540 = ((ins >> 2) & 0b11111) | (((ins >> 12) & 0b1) << 5);
+    let nzimm540 = nzuimm540;
+    let imm114981067315 = (((ins >> 3) & 0b11) << 1) | (((ins >> 11) & 0b1) << 3) | 
+        (((ins >> 2) & 0b1) << 4) | (((ins >> 7) & 0b1) << 5) | (((ins >> 6) & 0b1) << 6) | 
+        (((ins >> 9) & 0b11) << 8) | (((ins >> 8) & 0b1) << 9) | (((ins >> 11) & 0b1) << 10);
+    let r24_c = ((ins >> 2) & 0b111) as u8;
+    let r79_c = ((ins >> 7) & 0b111) as u8;
+    let rdrs1 = ((ins >> 7) & 0b11111) as u8;
+    let ans = match (opcode, funct3) {
+        (OPCODE_C0, 0b000) if nzuimm549623 != 0 => RVC(Caddi4spn(CIWType { 
+            rd: c_reg(r24_c), funct3, imm: Imm::new(nzuimm549623 as u32, 10) 
+        })).into(),
+        (OPCODE_C0, 0b001) if xlen == Xlen::X32 || xlen == Xlen::X64 => RVC(Cfld(CLType { 
+            rd: c_reg(r24_c), rs1: c_reg(r79_c), funct3, 
+            imm: Imm::new(uimm5376 as u32, 8) 
+        })).into(),
+        (OPCODE_C0, 0b001) if xlen == Xlen::X128 => RVC(Clq(CLType { 
+            rd: c_reg(r24_c), rs1: c_reg(r79_c), funct3, 
+            imm: Imm::new(uimm54876 as u32, 9) 
+        })).into(),
+        (OPCODE_C0, 0b010) => RVC(Clw(CLType { 
+            rd: c_reg(r24_c), rs1: c_reg(r79_c), funct3, 
+            imm: Imm::new(uimm5326 as u32, 7) 
+        })).into(),
+        (OPCODE_C0, 0b011) if xlen == Xlen::X32 => RVC(Cflw(CLType { 
+            rd: c_reg(r24_c), rs1: c_reg(r79_c), funct3, 
+            imm: Imm::new(uimm5326 as u32, 7) 
+        })).into(),
+        (OPCODE_C0, 0b011) if xlen == Xlen::X64 || xlen == Xlen::X128 => RVC(Cld(CLType { 
+            rd: c_reg(r24_c), rs1: c_reg(r79_c), funct3, 
+            imm: Imm::new(uimm5376 as u32, 8) 
+        })).into(),
+        (OPCODE_C0, 0b101) if xlen == Xlen::X32 || xlen == Xlen::X64 => RVC(Cfsd(CSType { 
+            rs1: c_reg(r79_c), rs2: c_reg(r24_c), funct3, 
+            imm: Imm::new(uimm5376 as u32, 8) 
+        })).into(),
+        (OPCODE_C0, 0b101) if xlen == Xlen::X128 => RVC(Csq(CSType { 
+            rs1: c_reg(r79_c), rs2: c_reg(r24_c), funct3, 
+            imm: Imm::new(uimm54876 as u32, 9) 
+        })).into(),
+        (OPCODE_C0, 0b110) => RVC(Csw(CSType { 
+            rs1: c_reg(r79_c), rs2: c_reg(r24_c), funct3, 
+            imm: Imm::new(uimm5326 as u32, 7) 
+        })).into(),
+        (OPCODE_C0, 0b111) if xlen == Xlen::X32 => RVC(Cfsw(CSType { 
+            rs1: c_reg(r79_c), rs2: c_reg(r24_c), funct3, 
+            imm: Imm::new(uimm5326 as u32, 7) 
+        })).into(),
+        (OPCODE_C0, 0b111) if xlen == Xlen::X64 || xlen == Xlen::X128 => RVC(Csd(CSType { 
+            rs1: c_reg(r79_c), rs2: c_reg(r24_c), funct3, 
+            imm: Imm::new(uimm5376 as u32, 8) 
+        })).into(),
+        (OPCODE_C1, 0b000) if rdrs1 == 0 => RVC(Cnop(CIType { 
+            rdrs1, funct3, imm: Imm::new(nzimm540 as u32, 6) 
+        })).into(),
+        (OPCODE_C1, 0b000) if rdrs1 != 0 => RVC(Caddi(CIType { 
+            rdrs1, funct3, imm: Imm::new(nzimm540 as u32, 6) 
+        })).into(),
+        (OPCODE_C1, 0b001) if xlen == Xlen::X32 => RVC(Cjal(CJType { 
+            funct3, target: Imm::new(imm114981067315 as u32, 12) 
+        })).into(),
+        
         _ => Err(())?
-    }
-    todo!()
+    };
+    Ok(ans)
+}
+
+fn c_reg(regid: u8) -> u8 {
+    regid + 8
 }
 
 const OPCODE_LOAD: u32 =     0b000_0011; 
@@ -569,7 +639,7 @@ pub struct CBType {
 #[derive(Debug, Clone, Copy)]
 pub struct CJType {
     pub funct3: u8,
-    pub target: u32,
+    pub target: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]

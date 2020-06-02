@@ -266,6 +266,7 @@ impl<'a> Execute<'a> {
         match self.xlen {
             Xlen::X32 => self.csrs.csr[csr as usize] & 0xFFFFFFFF,
             Xlen::X64 => self.csrs.csr[csr as usize],
+            Xlen::X128 => panic!("Unsupported")
         }
     }
 
@@ -273,6 +274,7 @@ impl<'a> Execute<'a> {
         match self.xlen {
             Xlen::X32 => self.csrs.csr[csr as usize] = data & 0xFFFFFFFF,
             Xlen::X64 => self.csrs.csr[csr as usize] = data,
+            Xlen::X128 => panic!("Unsupported")
         }
     }
 }

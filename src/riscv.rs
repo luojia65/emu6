@@ -10,4 +10,5 @@ pub use fetch::{Fetch, Instruction, FetchError};
 pub enum Xlen {
     X32,
     X64,
+    X128,
 }
