@@ -581,7 +581,7 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             FUNCT3_LOAD_LD if xlen == Xlen::X64 => Ld(i_type).into(),
             FUNCT3_LOAD_LBU => Lbu(i_type).into(),
             FUNCT3_LOAD_LHU => Lhu(i_type).into(),
-            FUNCT3_LOAD_LWU => Lwu(i_type).into(),
+            FUNCT3_LOAD_LWU if xlen == Xlen::X64 => Lwu(i_type).into(),
             _ => Err(())?,
         },
         OPCODE_STORE => match funct3 {
