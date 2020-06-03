@@ -39,11 +39,11 @@ impl<'a> Execute<'a> {
         }
     }
 
+    #[rustfmt::skip]
     pub fn execute(&mut self, ins: Instruction, pc: Usize, pc_nxt: &mut Usize) -> Result<()> {
-        use Instruction::*;
         let xlen = self.xlen;
         match ins {
-            RV32I(ins) => exec_rv32i(
+            Instruction::RV32I(ins) => exec_rv32i(
                 ins,
                 &mut self.x,
                 &mut self.data_mem,
@@ -52,9 +52,19 @@ impl<'a> Execute<'a> {
                 |uimm| uimm.zext(xlen),
                 |imm| imm.sext(xlen),
             )?,
-            RV64I(ins) => exec_rv64i(ins, &mut self.x, &mut self.data_mem, |imm| imm.sext(xlen))?,
-            RVZicsr(ins) => exec_rvzicsr(ins, &mut self.x, &mut self.csr, |uimm| uimm.zext(xlen))?,
-            RVC(_ins) => todo!(),
+            Instruction::RV64I(ins) => exec_rv64i(
+                ins,
+                &mut self.x,
+                &mut self.data_mem,
+                |imm| imm.sext(xlen)
+            )?,
+            Instruction::RVZicsr(ins) => exec_rvzicsr(
+                ins,
+                &mut self.x,
+                &mut self.csr,
+                |uimm| uimm.zext(xlen)
+            )?,
+            Instruction::RVC(_ins) => todo!(),
         }
         Ok(())
     }
