@@ -114,7 +114,7 @@ fn main() {
         let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
         println!("{:?}", ins);
         exec.execute(ins, pc, &mut pc_nxt).unwrap();
-        exec.dump_regs();
+        println!("{:?}", exec);
         pc = pc_nxt;
     }
 }

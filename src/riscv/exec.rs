@@ -39,16 +39,8 @@ impl<'a> Execute<'a> {
         }
     }
 
-    fn zext(&self, imm: Uimm) -> Usize {
-        imm.zext(self.xlen)
-    }
-
-    fn sext(&self, imm: Imm) -> Isize {
-        imm.sext(self.xlen)
-    }
-
     pub fn execute(&mut self, ins: Instruction, pc: Usize, pc_nxt: &mut Usize) -> Result<()> {
-        use {self::RVZicsr::*, self::RV64I::*, Instruction::*};
+        use Instruction::*;
         let xlen = self.xlen;
         match ins {
             RV32I(ins) => exec_rv32i(
@@ -60,81 +52,21 @@ impl<'a> Execute<'a> {
                 |uimm| uimm.zext(xlen),
                 |imm| imm.sext(xlen),
             )?,
-            RV64I(Lwu(i)) => {
-                let addr = pc_to_mem_addr(self.x.r_usize(i.rs1) + self.sext(i.imm));
-                let data = self.data_mem.read_u32(addr)?;
-                self.x.w_zext32(i.rd, data);
-            }
-            RV64I(Ld(i)) => {
-                let addr = pc_to_mem_addr(self.x.r_usize(i.rs1) + self.sext(i.imm));
-                let data = self.data_mem.read_u64(addr)?;
-                self.x.w_sext64(i.rd, data);
-            }
-            RV64I(Sd(s)) => self.data_mem.write_u64(
-                pc_to_mem_addr(self.x.r_usize(s.rs1) + self.sext(s.imm)),
-                self.x.r_low64(s.rs2),
+            RV64I(ins) => exec_rv64i(
+                ins,
+                &mut self.x,
+                &mut self.data_mem, 
+                |imm| imm.sext(xlen)
             )?,
-            RV64I(self::RV64I::Slli(i)) => {
-                self.x
-                    .w_usize(i.rd, self.x.r_usize(i.rs1) << shamt64(i.imm));
-            }
-            RV64I(self::RV64I::Srli(i)) => {
-                self.x
-                    .w_usize(i.rd, self.x.r_usize(i.rs1) >> shamt64(i.imm));
-            }
-            RV64I(self::RV64I::Srai(i)) => {
-                self.x
-                    .w_isize(i.rd, self.x.r_isize(i.rs1) >> shamt64(i.imm));
-            }
-            RV64I(self::RV64I::Sll(r)) => {
-                let shamt = shamt64r(self.x.r_usize(r.rs2));
-                self.x.w_usize(r.rd, self.x.r_usize(r.rs1) << shamt);
-            }
-            RV64I(self::RV64I::Srl(r)) => {
-                let shamt = shamt64r(self.x.r_usize(r.rs2));
-                self.x.w_usize(r.rd, self.x.r_usize(r.rs1) >> shamt);
-            }
-            RV64I(self::RV64I::Sra(r)) => {
-                let shamt = shamt64r(self.x.r_usize(r.rs2));
-                self.x.w_isize(r.rd, self.x.r_isize(r.rs1) >> shamt);
-            }
-            RVZicsr(Csrrw(csr)) => {
-                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
-                self.csr.w_usize(csr.csr, self.x.r_usize(csr.rs1));
-            }
-            RVZicsr(Csrrs(csr)) => {
-                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
-                self.csr
-                    .w_usize(csr.csr, self.csr.r_usize(csr.csr) | self.x.r_usize(csr.rs1));
-            }
-            RVZicsr(Csrrc(csr)) => {
-                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
-                self.csr.w_usize(
-                    csr.csr,
-                    self.csr.r_usize(csr.csr) & !self.x.r_usize(csr.rs1),
-                );
-            }
-            RVZicsr(Csrrwi(csr)) => {
-                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
-                self.csr.w_usize(csr.csr, self.zext(csr.uimm));
-            }
-            RVZicsr(Csrrsi(csr)) => {
-                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
-                self.csr
-                    .w_usize(csr.csr, self.csr.r_usize(csr.csr) | self.zext(csr.uimm));
-            }
-            RVZicsr(Csrrci(csr)) => {
-                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
-                self.csr
-                    .w_usize(csr.csr, self.csr.r_usize(csr.csr) & !self.zext(csr.uimm));
-            }
-            _ => panic!("todo"),
+            RVZicsr(ins) => exec_rvzicsr(
+                ins, 
+                &mut self.x,
+                &mut self.csr,
+                |uimm| uimm.zext(xlen),
+            )?,
+            RVC(_ins) => todo!()
         }
         Ok(())
-    }
-
-    pub(crate) fn dump_regs(&self) {
-        println!("{:?}", self.x);
     }
 }
 
@@ -144,14 +76,6 @@ fn shamt32(imm: Imm) -> u32 {
 
 fn shamt32r(data: Usize) -> u32 {
     data.low32() & 0b11111
-}
-
-fn shamt64(imm: Imm) -> u32 {
-    imm.low32() & 0b111111
-}
-
-fn shamt64r(data: Usize) -> u32 {
-    data.low32() & 0b111111
 }
 
 fn exec_rv32i<'a, ZEXT: Fn(Uimm) -> Usize, SEXT: Fn(Imm) -> Isize>(
@@ -317,6 +241,107 @@ fn exec_rv32i<'a, ZEXT: Fn(Uimm) -> Usize, SEXT: Fn(Imm) -> Isize>(
         Fence(_) => todo!(),
         Ecall(_) => todo!(),
         Ebreak(_) => todo!(),
+    }
+    Ok(())
+}
+
+fn shamt64(imm: Imm) -> u32 {
+    imm.low32() & 0b111111
+}
+
+fn shamt64r(data: Usize) -> u32 {
+    data.low32() & 0b111111
+}
+
+fn exec_rv64i<'a, SEXT: Fn(Imm) -> Isize>(
+    ins: RV64I,
+    x: &mut XReg,
+    data_mem: &mut Physical<'a>,
+    sext: SEXT,
+) -> Result<()> { 
+    use RV64I::*;
+    match ins {
+        Lwu(i) => {
+            let addr = pc_to_mem_addr(x.r_usize(i.rs1) + sext(i.imm));
+            let data = data_mem.read_u32(addr)?;
+            x.w_zext32(i.rd, data);
+        }
+        Ld(i) => {
+            let addr = pc_to_mem_addr(x.r_usize(i.rs1) + sext(i.imm));
+            let data = data_mem.read_u64(addr)?;
+            x.w_sext64(i.rd, data);
+        }
+        Sd(s) => data_mem.write_u64(
+            pc_to_mem_addr(x.r_usize(s.rs1) + sext(s.imm)),
+            x.r_low64(s.rs2),
+        )?,
+        Slli(i) => 
+            x.w_usize(i.rd, x.r_usize(i.rs1) << shamt64(i.imm)),
+        Srli(i) => 
+            x.w_usize(i.rd, x.r_usize(i.rs1) >> shamt64(i.imm)),
+        Srai(i) => 
+            x.w_isize(i.rd, x.r_isize(i.rs1) >> shamt64(i.imm)),
+        Sll(r) => {
+            let shamt = shamt64r(x.r_usize(r.rs2));
+            x.w_usize(r.rd, x.r_usize(r.rs1) << shamt);
+        },
+        Srl(r) => {
+            let shamt = shamt64r(x.r_usize(r.rs2));
+            x.w_usize(r.rd, x.r_usize(r.rs1) >> shamt);
+        },
+        Sra(r) => {
+            let shamt = shamt64r(x.r_usize(r.rs2));
+            x.w_isize(r.rd, x.r_isize(r.rs1) >> shamt);
+        },
+        Addiw(_i) => todo!(),
+        Slliw(_i) => todo!(),
+        Srliw(_i) => todo!(),
+        Sraiw(_i) => todo!(),
+        Addw(_r) => todo!(),
+        Subw(_r) => todo!(),
+        Sllw(_r) => todo!(),
+        Srlw(_r) => todo!(),
+        Sraw(_r) => todo!(),
+    }
+    Ok(())
+}
+
+fn exec_rvzicsr<'a, ZEXT: Fn(Uimm) -> Usize>(
+    ins: RVZicsr,
+    x: &mut XReg,
+    csr: &mut Csr,
+    zext: ZEXT,
+) -> Result<()> { 
+    use RVZicsr::*;
+    match ins {
+        Csrrw(r) => {
+            x.w_usize(r.rd, csr.r_usize(r.csr));
+            csr.w_usize(r.csr, x.r_usize(r.rs1));
+        }
+        Csrrs(r) => {
+            x.w_usize(r.rd, csr.r_usize(r.csr));
+            csr
+                .w_usize(r.csr, csr.r_usize(r.csr) | x.r_usize(r.rs1));
+        }
+        Csrrc(r) => {
+            x.w_usize(r.rd, csr.r_usize(r.csr));
+            csr.w_usize(
+                r.csr,
+                csr.r_usize(r.csr) & !x.r_usize(r.rs1),
+            );
+        }
+        Csrrwi(i) => {
+            x.w_usize(i.rd, csr.r_usize(i.csr));
+            csr.w_usize(i.csr, zext(i.uimm));
+        }
+        Csrrsi(i) => {
+            x.w_usize(i.rd, csr.r_usize(i.csr));
+            csr.w_usize(i.csr, csr.r_usize(i.csr) | zext(i.uimm));
+        }
+        Csrrci(i) => {
+            x.w_usize(i.rd, csr.r_usize(i.csr));
+            csr.w_usize(i.csr, csr.r_usize(i.csr) & !zext(i.uimm));
+        }
     }
     Ok(())
 }

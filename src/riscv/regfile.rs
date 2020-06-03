@@ -167,15 +167,15 @@ impl core::fmt::Debug for XReg {
 // -- ISA spec definded CSRs
 // Floating point CSRs
 const CSR_FFLAGS: u16 = 0x001;
-const CSR_FRM: u16 = 0x002;
-const CSR_FCSR: u16 = 0x003;
+// const CSR_FRM: u16 = 0x002;
+// const CSR_FCSR: u16 = 0x003;
 // Counters and timers
-const CSR_CYCLE: u16 = 0xC00;
-const CSR_TIME: u16 = 0xC01;
-const CSR_INSTRET: u16 = 0xC02;
-const CSR_CYCLEH: u16 = 0xC80;
-const CSR_TIMEH: u16 = 0xC81;
-const CSR_INSTRETH: u16 = 0xC82;
+// const CSR_CYCLE: u16 = 0xC00;
+// const CSR_TIME: u16 = 0xC01;
+// const CSR_INSTRET: u16 = 0xC02;
+// const CSR_CYCLEH: u16 = 0xC80;
+// const CSR_TIMEH: u16 = 0xC81;
+// const CSR_INSTRETH: u16 = 0xC82;
 
 pub struct Csr {
     fcsr: u32,
