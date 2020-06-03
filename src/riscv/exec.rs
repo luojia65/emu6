@@ -313,34 +313,49 @@ fn exec_rvzicsr<'a, ZEXT: Fn(Uimm) -> Usize>(
     zext: ZEXT,
 ) -> Result<()> { 
     use RVZicsr::*;
+    // if r.rd!=0 or r.rs1 != 0 => prevent side effects
     match ins {
         Csrrw(r) => {
-            x.w_usize(r.rd, csr.r_usize(r.csr));
+            if r.rd != 0 {
+                x.w_usize(r.rd, csr.r_usize(r.csr));
+            }
             csr.w_usize(r.csr, x.r_usize(r.rs1));
         }
         Csrrs(r) => {
             x.w_usize(r.rd, csr.r_usize(r.csr));
-            csr
-                .w_usize(r.csr, csr.r_usize(r.csr) | x.r_usize(r.rs1));
+            if r.rs1 != 0 {
+                csr.w_usize(
+                    r.csr, 
+                    csr.r_usize(r.csr) | x.r_usize(r.rs1)
+                );
+            }
         }
         Csrrc(r) => {
             x.w_usize(r.rd, csr.r_usize(r.csr));
-            csr.w_usize(
-                r.csr,
-                csr.r_usize(r.csr) & !x.r_usize(r.rs1),
-            );
+            if r.rs1 != 0 {
+                csr.w_usize(
+                    r.csr,
+                    csr.r_usize(r.csr) & !x.r_usize(r.rs1),
+                );
+            }
         }
         Csrrwi(i) => {
-            x.w_usize(i.rd, csr.r_usize(i.csr));
+            if i.rd != 0 {
+                x.w_usize(i.rd, csr.r_usize(i.csr));
+            }
             csr.w_usize(i.csr, zext(i.uimm));
         }
         Csrrsi(i) => {
             x.w_usize(i.rd, csr.r_usize(i.csr));
-            csr.w_usize(i.csr, csr.r_usize(i.csr) | zext(i.uimm));
+            if i.uimm != 0 {
+                csr.w_usize(i.csr, csr.r_usize(i.csr) | zext(i.uimm));
+            }
         }
         Csrrci(i) => {
             x.w_usize(i.rd, csr.r_usize(i.csr));
-            csr.w_usize(i.csr, csr.r_usize(i.csr) & !zext(i.uimm));
+            if i.uimm != 0 {
+                csr.w_usize(i.csr, csr.r_usize(i.csr) & !zext(i.uimm));
+            }
         }
     }
     Ok(())

@@ -25,6 +25,10 @@ impl Uimm {
         assert!(valid_bits >= 1);
         Uimm { data, valid_bits }
     }
+
+    pub fn low32(&self) -> u32 {
+        self.data & MASK32[self.valid_bits as usize]
+    }
 }
 
 static MASK32: [u32; 33] = [
@@ -92,5 +96,11 @@ impl core::fmt::Debug for Uimm {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let num = self.data & MASK32[self.valid_bits as usize];
         f.write_fmt(format_args!("{}", num))
+    }
+}
+
+impl core::cmp::PartialEq<u32> for Uimm {
+    fn eq(&self, rhs: &u32) -> bool {
+        self.low32() == *rhs
     }
 }
