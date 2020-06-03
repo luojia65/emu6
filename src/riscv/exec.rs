@@ -52,19 +52,9 @@ impl<'a> Execute<'a> {
                 |uimm| uimm.zext(xlen),
                 |imm| imm.sext(xlen),
             )?,
-            RV64I(ins) => exec_rv64i(
-                ins,
-                &mut self.x,
-                &mut self.data_mem, 
-                |imm| imm.sext(xlen)
-            )?,
-            RVZicsr(ins) => exec_rvzicsr(
-                ins, 
-                &mut self.x,
-                &mut self.csr,
-                |uimm| uimm.zext(xlen),
-            )?,
-            RVC(_ins) => todo!()
+            RV64I(ins) => exec_rv64i(ins, &mut self.x, &mut self.data_mem, |imm| imm.sext(xlen))?,
+            RVZicsr(ins) => exec_rvzicsr(ins, &mut self.x, &mut self.csr, |uimm| uimm.zext(xlen))?,
+            RVC(_ins) => todo!(),
         }
         Ok(())
     }
@@ -258,7 +248,7 @@ fn exec_rv64i<'a, SEXT: Fn(Imm) -> Isize>(
     x: &mut XReg,
     data_mem: &mut Physical<'a>,
     sext: SEXT,
-) -> Result<()> { 
+) -> Result<()> {
     use RV64I::*;
     match ins {
         Lwu(i) => {
@@ -275,24 +265,21 @@ fn exec_rv64i<'a, SEXT: Fn(Imm) -> Isize>(
             pc_to_mem_addr(x.r_usize(s.rs1) + sext(s.imm)),
             x.r_low64(s.rs2),
         )?,
-        Slli(i) => 
-            x.w_usize(i.rd, x.r_usize(i.rs1) << shamt64(i.imm)),
-        Srli(i) => 
-            x.w_usize(i.rd, x.r_usize(i.rs1) >> shamt64(i.imm)),
-        Srai(i) => 
-            x.w_isize(i.rd, x.r_isize(i.rs1) >> shamt64(i.imm)),
+        Slli(i) => x.w_usize(i.rd, x.r_usize(i.rs1) << shamt64(i.imm)),
+        Srli(i) => x.w_usize(i.rd, x.r_usize(i.rs1) >> shamt64(i.imm)),
+        Srai(i) => x.w_isize(i.rd, x.r_isize(i.rs1) >> shamt64(i.imm)),
         Sll(r) => {
             let shamt = shamt64r(x.r_usize(r.rs2));
             x.w_usize(r.rd, x.r_usize(r.rs1) << shamt);
-        },
+        }
         Srl(r) => {
             let shamt = shamt64r(x.r_usize(r.rs2));
             x.w_usize(r.rd, x.r_usize(r.rs1) >> shamt);
-        },
+        }
         Sra(r) => {
             let shamt = shamt64r(x.r_usize(r.rs2));
             x.w_isize(r.rd, x.r_isize(r.rs1) >> shamt);
-        },
+        }
         Addiw(_i) => todo!(),
         Slliw(_i) => todo!(),
         Srliw(_i) => todo!(),
@@ -311,7 +298,7 @@ fn exec_rvzicsr<'a, ZEXT: Fn(Uimm) -> Usize>(
     x: &mut XReg,
     csr: &mut Csr,
     zext: ZEXT,
-) -> Result<()> { 
+) -> Result<()> {
     use RVZicsr::*;
     // if r.rd!=0 or r.rs1 != 0 => prevent side effects
     match ins {
@@ -324,19 +311,13 @@ fn exec_rvzicsr<'a, ZEXT: Fn(Uimm) -> Usize>(
         Csrrs(r) => {
             x.w_usize(r.rd, csr.r_usize(r.csr));
             if r.rs1 != 0 {
-                csr.w_usize(
-                    r.csr, 
-                    csr.r_usize(r.csr) | x.r_usize(r.rs1)
-                );
+                csr.w_usize(r.csr, csr.r_usize(r.csr) | x.r_usize(r.rs1));
             }
         }
         Csrrc(r) => {
             x.w_usize(r.rd, csr.r_usize(r.csr));
             if r.rs1 != 0 {
-                csr.w_usize(
-                    r.csr,
-                    csr.r_usize(r.csr) & !x.r_usize(r.rs1),
-                );
+                csr.w_usize(r.csr, csr.r_usize(r.csr) & !x.r_usize(r.rs1));
             }
         }
         Csrrwi(i) => {
