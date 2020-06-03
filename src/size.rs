@@ -46,8 +46,8 @@ impl core::cmp::PartialOrd for Usize {
         match (self, other) {
             (U32(a), U32(b)) => a.partial_cmp(b),
             (U64(a), U64(b)) => a.partial_cmp(b),
-            _ => None
-        } 
+            _ => None,
+        }
     }
 }
 
@@ -57,7 +57,7 @@ impl core::ops::Add<Usize> for Usize {
         match (self, rhs) {
             (Usize::U32(a), Usize::U32(b)) => Usize::U32(a.wrapping_add(b)),
             (Usize::U64(a), Usize::U64(b)) => Usize::U64(a.wrapping_add(b)),
-            _ => panic!("Not the same type")
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -68,7 +68,7 @@ impl core::ops::Sub<Usize> for Usize {
         match (self, rhs) {
             (Usize::U32(a), Usize::U32(b)) => Usize::U32(a.wrapping_sub(b)),
             (Usize::U64(a), Usize::U64(b)) => Usize::U64(a.wrapping_sub(b)),
-            _ => panic!("Not the same type")
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -77,19 +77,17 @@ impl core::ops::Add<Isize> for Usize {
     type Output = Usize;
     fn add(self, rhs: Isize) -> Self::Output {
         match (self, rhs) {
-            (Usize::U32(a), Isize::I32(b)) => 
-                Usize::U32(if b > 0 {
-                    a.wrapping_add(b as u32)
-                } else {
-                    a.wrapping_add(b.abs() as u32)
-                }),
-            (Usize::U64(a), Isize::I64(b)) => 
-                Usize::U64(if b > 0 {
-                    a.wrapping_add(b as u64)
-                } else {
-                    a.wrapping_add(b.abs() as u64)
-                }),
-            _ => panic!("Not the same type")
+            (Usize::U32(a), Isize::I32(b)) => Usize::U32(if b > 0 {
+                a.wrapping_add(b as u32)
+            } else {
+                a.wrapping_add(b.abs() as u32)
+            }),
+            (Usize::U64(a), Isize::I64(b)) => Usize::U64(if b > 0 {
+                a.wrapping_add(b as u64)
+            } else {
+                a.wrapping_add(b.abs() as u64)
+            }),
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -100,7 +98,7 @@ impl core::ops::BitAnd<Usize> for Usize {
         match (self, rhs) {
             (Usize::U32(a), Usize::U32(b)) => Usize::U32(a & b),
             (Usize::U64(a), Usize::U64(b)) => Usize::U64(a & b),
-            _ => panic!("Not the same type")
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -111,7 +109,7 @@ impl core::ops::BitOr<Usize> for Usize {
         match (self, rhs) {
             (Usize::U32(a), Usize::U32(b)) => Usize::U32(a | b),
             (Usize::U64(a), Usize::U64(b)) => Usize::U64(a | b),
-            _ => panic!("Not the same type")
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -122,7 +120,7 @@ impl core::ops::BitXor<Usize> for Usize {
         match (self, rhs) {
             (Usize::U32(a), Usize::U32(b)) => Usize::U32(a ^ b),
             (Usize::U64(a), Usize::U64(b)) => Usize::U64(a ^ b),
-            _ => panic!("Not the same type")
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -131,11 +129,13 @@ impl core::ops::BitAnd<Isize> for Usize {
     type Output = Usize;
     fn bitand(self, rhs: Isize) -> Self::Output {
         match (self, rhs) {
-            (Usize::U32(a), Isize::I32(b)) => Usize::U32(
-                a & u32::from_ne_bytes(i32::to_ne_bytes(b))),
-            (Usize::U64(a), Isize::I64(b)) => Usize::U64(
-                a & u64::from_ne_bytes(i64::to_ne_bytes(b))),
-            _ => panic!("Not the same type")
+            (Usize::U32(a), Isize::I32(b)) => {
+                Usize::U32(a & u32::from_ne_bytes(i32::to_ne_bytes(b)))
+            }
+            (Usize::U64(a), Isize::I64(b)) => {
+                Usize::U64(a & u64::from_ne_bytes(i64::to_ne_bytes(b)))
+            }
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -144,11 +144,13 @@ impl core::ops::BitOr<Isize> for Usize {
     type Output = Usize;
     fn bitor(self, rhs: Isize) -> Self::Output {
         match (self, rhs) {
-            (Usize::U32(a), Isize::I32(b)) => Usize::U32(
-                a | u32::from_ne_bytes(i32::to_ne_bytes(b))),
-            (Usize::U64(a), Isize::I64(b)) => Usize::U64(
-                a | u64::from_ne_bytes(i64::to_ne_bytes(b))),
-            _ => panic!("Not the same type")
+            (Usize::U32(a), Isize::I32(b)) => {
+                Usize::U32(a | u32::from_ne_bytes(i32::to_ne_bytes(b)))
+            }
+            (Usize::U64(a), Isize::I64(b)) => {
+                Usize::U64(a | u64::from_ne_bytes(i64::to_ne_bytes(b)))
+            }
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -157,11 +159,13 @@ impl core::ops::BitXor<Isize> for Usize {
     type Output = Usize;
     fn bitxor(self, rhs: Isize) -> Self::Output {
         match (self, rhs) {
-            (Usize::U32(a), Isize::I32(b)) => Usize::U32(
-                a ^ u32::from_ne_bytes(i32::to_ne_bytes(b))),
-            (Usize::U64(a), Isize::I64(b)) => Usize::U64(
-                a ^ u64::from_ne_bytes(i64::to_ne_bytes(b))),
-            _ => panic!("Not the same type")
+            (Usize::U32(a), Isize::I32(b)) => {
+                Usize::U32(a ^ u32::from_ne_bytes(i32::to_ne_bytes(b)))
+            }
+            (Usize::U64(a), Isize::I64(b)) => {
+                Usize::U64(a ^ u64::from_ne_bytes(i64::to_ne_bytes(b)))
+            }
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -201,7 +205,7 @@ impl core::ops::AddAssign<Usize> for Usize {
         match (self, rhs) {
             (Usize::U32(a), Usize::U32(b)) => *a = a.wrapping_add(b),
             (Usize::U64(a), Usize::U64(b)) => *a = a.wrapping_add(b),
-            _ => panic!("Not the same type")
+            _ => panic!("Not the same type"),
         }
     }
 }
@@ -245,8 +249,8 @@ impl core::cmp::PartialOrd for Isize {
         match (self, other) {
             (I32(a), I32(b)) => a.partial_cmp(b),
             (I64(a), I64(b)) => a.partial_cmp(b),
-            _ => None
-        } 
+            _ => None,
+        }
     }
 }
 

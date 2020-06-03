@@ -1,10 +1,10 @@
-mod fetch;
 mod exec;
-mod regfile;
+mod fetch;
 mod imm;
+mod regfile;
 
 pub use exec::Execute;
-pub use fetch::{Fetch, Instruction, FetchError};
+pub use fetch::{Fetch, FetchError, Instruction};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Xlen {

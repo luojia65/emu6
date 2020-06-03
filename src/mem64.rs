@@ -1,6 +1,6 @@
+use crate::error::Result;
 use core::ops::Range;
 use core::ptr::copy_nonoverlapping;
-use crate::error::Result;
 use thiserror::Error;
 
 #[derive(Debug)]
@@ -10,7 +10,9 @@ pub struct Physical<'a> {
 
 impl<'a> Physical<'a> {
     pub fn new() -> Physical<'a> {
-        Physical { sections: Vec::new() }
+        Physical {
+            sections: Vec::new(),
+        }
     }
 
     pub fn push_zeroed(&mut self, config: Config) {
@@ -45,45 +47,64 @@ impl<'a> Physical<'a> {
         let start = new_config.range.start;
         let end = new_config.range.end;
         for section in &self.sections {
-            if section.config.range.contains(&start) || 
-                section.config.range.contains(&end) {
+            if section.config.range.contains(&start) || section.config.range.contains(&end) {
                 return false;
             }
         }
         true
-    } 
+    }
 }
 
 impl<'a> Physical<'a> {
     pub fn read_u8(&self, addr: u64) -> Result<u8> {
-        self.read_any(addr, |section, addr| section.read_u8(addr), 
-            Protect::READ, |addr| MemError::CannotRead { addr })
+        self.read_any(
+            addr,
+            |section, addr| section.read_u8(addr),
+            Protect::READ,
+            |addr| MemError::CannotRead { addr },
+        )
     }
 
     pub fn read_u16(&self, addr: u64) -> Result<u16> {
-        self.read_any(addr, |section, addr| section.read_u16(addr), 
-            Protect::READ, |addr| MemError::CannotRead { addr })
+        self.read_any(
+            addr,
+            |section, addr| section.read_u16(addr),
+            Protect::READ,
+            |addr| MemError::CannotRead { addr },
+        )
     }
 
     pub fn read_u32(&self, addr: u64) -> Result<u32> {
-        self.read_any(addr, |section, addr| section.read_u32(addr), 
-            Protect::READ, |addr| MemError::CannotRead { addr })
+        self.read_any(
+            addr,
+            |section, addr| section.read_u32(addr),
+            Protect::READ,
+            |addr| MemError::CannotRead { addr },
+        )
     }
 
     pub fn read_u64(&self, addr: u64) -> Result<u64> {
-        self.read_any(addr, |section, addr| section.read_u64(addr), 
-            Protect::READ, |addr| MemError::CannotRead { addr })
+        self.read_any(
+            addr,
+            |section, addr| section.read_u64(addr),
+            Protect::READ,
+            |addr| MemError::CannotRead { addr },
+        )
     }
 
     pub fn fetch_ins_u16(&self, addr: u64) -> Result<u16> {
-        self.read_any(addr, |section, addr| section.read_u16(addr), 
-            Protect::EXECUTE, |addr| MemError::CannotExecute { addr })
+        self.read_any(
+            addr,
+            |section, addr| section.read_u16(addr),
+            Protect::EXECUTE,
+            |addr| MemError::CannotExecute { addr },
+        )
     }
 
-    fn read_any<T, F, E>(&self, addr: u64, f: F, token: Protect, e: E) -> Result<T> 
-    where 
+    fn read_any<T, F, E>(&self, addr: u64, f: F, token: Protect, e: E) -> Result<T>
+    where
         F: Fn(&Section, u64) -> Result<T>,
-        E: Fn(u64) -> MemError
+        E: Fn(u64) -> MemError,
     {
         if let Some(section) = self.choose_section(addr) {
             if section.config.protect.contains(token) {
@@ -112,16 +133,16 @@ impl<'a> Physical<'a> {
         self.write_any(addr, |section, addr| section.write_u64(addr, n))
     }
 
-    fn write_any<F>(&mut self, addr: u64, f: F) -> Result<()> 
-    where 
-        F: Fn(&mut Section, u64) -> Result<()>
+    fn write_any<F>(&mut self, addr: u64, f: F) -> Result<()>
+    where
+        F: Fn(&mut Section, u64) -> Result<()>,
     {
         for mut section in &mut self.sections {
             if section.config.range.contains(&addr) {
                 if section.config.protect.contains(Protect::WRITE) {
-                    return f(&mut section, addr)
+                    return f(&mut section, addr);
                 } else {
-                    return Err(MemError::CannotWrite { addr })?
+                    return Err(MemError::CannotWrite { addr })?;
                 }
             }
         }
@@ -131,7 +152,7 @@ impl<'a> Physical<'a> {
     fn choose_section(&self, addr: u64) -> Option<&Section> {
         for section in &self.sections {
             if section.config.range.contains(&addr) {
-                return Some(&section)
+                return Some(&section);
             }
         }
         None
@@ -146,22 +167,34 @@ struct Section<'a> {
 
 impl<'a> Section<'a> {
     fn new_zeroed(config: Config) -> Section<'a> {
-        Section { config, inner: SectionInner::Owned(Vec::new()) }
+        Section {
+            config,
+            inner: SectionInner::Owned(Vec::new()),
+        }
     }
 
     fn new_slice(config: Config, slice: &[u8]) -> Section {
         if config.protect.contains(Protect::WRITE) {
             panic!("Cannot construct writeable buffer from read-only slices")
         }
-        Section { config, inner: SectionInner::Borrowed(slice) }
+        Section {
+            config,
+            inner: SectionInner::Borrowed(slice),
+        }
     }
 
     fn new_slice_mut(config: Config, slice: &mut [u8]) -> Section {
-        Section { config, inner: SectionInner::BorrowedMut(slice) }
+        Section {
+            config,
+            inner: SectionInner::BorrowedMut(slice),
+        }
     }
 
     fn new_owned(config: Config, owned: Vec<u8>) -> Section<'a> {
-        Section { config, inner: SectionInner::Owned(owned) }
+        Section {
+            config,
+            inner: SectionInner::Owned(owned),
+        }
     }
 }
 
@@ -216,21 +249,21 @@ impl<'a> Section<'a> {
 
     fn get_underlying_buf_offset(&self, addr: u64) -> Result<u64> {
         if !self.config.range.contains(&addr) {
-            return Err(MemError::NoMemory { addr })?
+            return Err(MemError::NoMemory { addr })?;
         }
         Ok(addr - self.config.range.start) // will not underflow
     }
 
     fn check_read(&self, addr: u64) -> Result<()> {
         if !self.config.protect.contains(Protect::READ) {
-            return Err(MemError::CannotRead { addr })?
+            return Err(MemError::CannotRead { addr })?;
         }
         Ok(())
     }
 
     fn check_write(&self, addr: u64) -> Result<()> {
         if !self.config.protect.contains(Protect::WRITE) {
-            return Err(MemError::CannotWrite { addr })?
+            return Err(MemError::CannotWrite { addr })?;
         }
         Ok(())
     }
@@ -330,7 +363,7 @@ pub struct Config {
 #[derive(Clone, Copy, Debug)]
 pub enum Endian {
     Big,
-    Little
+    Little,
 }
 
 bitflags::bitflags! {

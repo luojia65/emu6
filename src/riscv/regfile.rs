@@ -1,5 +1,5 @@
-use crate::size::{Usize, Isize};
 use super::Xlen;
+use crate::size::{Isize, Usize};
 
 pub struct XReg {
     x: [Usize; 32],
@@ -10,7 +10,7 @@ impl XReg {
         let init = match xlen {
             Xlen::X32 => Usize::U32(0),
             Xlen::X64 => Usize::U64(0),
-            Xlen::X128 => panic!("Unsupported")
+            Xlen::X128 => panic!("Unsupported"),
         };
         XReg { x: [init; 32] }
     }
@@ -51,29 +51,39 @@ impl XReg {
         }
     }
     pub fn w_usize(&mut self, idx: u8, val: Usize) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         self.x[idx as usize] = val;
     }
     pub fn w_isize(&mut self, idx: u8, val: Isize) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         self.x[idx as usize] = val.cast_to_usize();
     }
     pub fn w_zext8(&mut self, idx: u8, val: u8) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val as u32,
             Usize::U64(data) => *data = val as u64,
         }
     }
     pub fn w_zext16(&mut self, idx: u8, val: u16) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val as u32,
             Usize::U64(data) => *data = val as u64,
         }
     }
     pub fn w_zext32(&mut self, idx: u8, val: u32) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val,
             Usize::U64(data) => *data = val as u64,
@@ -88,33 +98,59 @@ impl XReg {
     //     }
     // }
     pub fn w_sext8(&mut self, idx: u8, val: u8) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
-            Usize::U32(data) => 
-                *data = (val as u32) | if (val >> 7) != 0 { 0xFFFFFF00 } else { 0 },
-            Usize::U64(data) => 
-                *data = (val as u64) | if (val >> 7) != 0 { 0xFFFFFFFFFFFFFF00 } else { 0 },
+            Usize::U32(data) => *data = (val as u32) | if (val >> 7) != 0 { 0xFFFFFF00 } else { 0 },
+            Usize::U64(data) => {
+                *data = (val as u64)
+                    | if (val >> 7) != 0 {
+                        0xFFFFFFFFFFFFFF00
+                    } else {
+                        0
+                    }
+            }
         }
     }
     pub fn w_sext16(&mut self, idx: u8, val: u16) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
-            Usize::U32(data) => 
-                *data = (val as u32) | if (val >> 15) != 0 { 0xFFFF0000 } else { 0 },
-            Usize::U64(data) => 
-                *data = (val as u64) | if (val >> 15) != 0 { 0xFFFFFFFFFFFF0000 } else { 0 },
+            Usize::U32(data) => {
+                *data = (val as u32) | if (val >> 15) != 0 { 0xFFFF0000 } else { 0 }
+            }
+            Usize::U64(data) => {
+                *data = (val as u64)
+                    | if (val >> 15) != 0 {
+                        0xFFFFFFFFFFFF0000
+                    } else {
+                        0
+                    }
+            }
         }
     }
     pub fn w_sext32(&mut self, idx: u8, val: u32) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
             Usize::U32(data) => *data = val,
-            Usize::U64(data) => 
-                *data = (val as u64) | if (val >> 31) != 0 { 0xFFFFFFFF00000000 } else { 0 },
+            Usize::U64(data) => {
+                *data = (val as u64)
+                    | if (val >> 31) != 0 {
+                        0xFFFFFFFF00000000
+                    } else {
+                        0
+                    }
+            }
         }
     }
     pub fn w_sext64(&mut self, idx: u8, val: u64) {
-        if idx == 0 { return }
+        if idx == 0 {
+            return;
+        }
         match &mut self.x[idx as usize] {
             Usize::U32(_) => panic!("cannot write 64-bit value into 32-bit registers"),
             Usize::U64(data) => *data = val,
@@ -130,15 +166,15 @@ impl core::fmt::Debug for XReg {
 
 // -- ISA spec definded CSRs
 // Floating point CSRs
-const CSR_FFLAGS: u16   = 0x001;
-const CSR_FRM: u16      = 0x002;
-const CSR_FCSR: u16     = 0x003;
+const CSR_FFLAGS: u16 = 0x001;
+const CSR_FRM: u16 = 0x002;
+const CSR_FCSR: u16 = 0x003;
 // Counters and timers
-const CSR_CYCLE: u16    = 0xC00;
-const CSR_TIME: u16     = 0xC01;
-const CSR_INSTRET: u16  = 0xC02;
-const CSR_CYCLEH: u16   = 0xC80;
-const CSR_TIMEH: u16    = 0xC81;
+const CSR_CYCLE: u16 = 0xC00;
+const CSR_TIME: u16 = 0xC01;
+const CSR_INSTRET: u16 = 0xC02;
+const CSR_CYCLEH: u16 = 0xC80;
+const CSR_TIMEH: u16 = 0xC81;
 const CSR_INSTRETH: u16 = 0xC82;
 
 pub struct Csr {
@@ -154,14 +190,14 @@ impl Csr {
     pub fn r_usize(&self, csr: u16) -> Usize {
         match csr {
             CSR_FFLAGS => self.u32_to_usize(self.fcsr),
-            _ => todo!()
+            _ => todo!(),
         }
     }
-    
+
     pub fn w_usize(&mut self, csr: u16, a: Usize) {
         match csr {
             CSR_FFLAGS => self.fcsr = a.low32(),
-            _ => todo!()
+            _ => todo!(),
         }
     }
 

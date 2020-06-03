@@ -28,15 +28,11 @@ impl Uimm {
 }
 
 static MASK32: [u32; 33] = [
-    0x00000000,
-    0x00000001, 0x00000003, 0x00000007, 0x0000000F,
-    0x0000001F, 0x0000003F, 0x0000007F, 0x000000FF,
-    0x000001FF, 0x000003FF, 0x000007FF, 0x00000FFF,
-    0x00001FFF, 0x00003FFF, 0x00007FFF, 0x0000FFFF,
-    0x0001FFFF, 0x0003FFFF, 0x0007FFFF, 0x000FFFFF,
-    0x001FFFFF, 0x003FFFFF, 0x007FFFFF, 0x00FFFFFF,
-    0x01FFFFFF, 0x03FFFFFF, 0x07FFFFFF, 0x0FFFFFFF,
-    0x1FFFFFFF, 0x3FFFFFFF, 0x7FFFFFFF, 0xFFFFFFFF,
+    0x00000000, 0x00000001, 0x00000003, 0x00000007, 0x0000000F, 0x0000001F, 0x0000003F, 0x0000007F,
+    0x000000FF, 0x000001FF, 0x000003FF, 0x000007FF, 0x00000FFF, 0x00001FFF, 0x00003FFF, 0x00007FFF,
+    0x0000FFFF, 0x0001FFFF, 0x0003FFFF, 0x0007FFFF, 0x000FFFFF, 0x001FFFFF, 0x003FFFFF, 0x007FFFFF,
+    0x00FFFFFF, 0x01FFFFFF, 0x03FFFFFF, 0x07FFFFFF, 0x0FFFFFFF, 0x1FFFFFFF, 0x3FFFFFFF, 0x7FFFFFFF,
+    0xFFFFFFFF,
 ];
 
 impl Imm {
@@ -48,20 +44,23 @@ impl Imm {
                     ans |= !MASK32[self.valid_bits as usize];
                 }
                 Isize::I32(i32::from_ne_bytes(u32::to_ne_bytes(ans)))
-            },
+            }
             Xlen::X64 => {
                 let mut ans = (self.data & MASK32[self.valid_bits as usize]) as u64;
                 if self.data & (1 << (self.valid_bits - 1)) != 0 {
                     ans |= !MASK32[self.valid_bits as usize] as u64 | 0xFFFFFFFF_00000000;
                 }
                 Isize::I64(i64::from_ne_bytes(u64::to_ne_bytes(ans)))
-            },
-            Xlen::X128 => panic!("Unsupported")
+            }
+            Xlen::X128 => panic!("Unsupported"),
         }
-    }  
+    }
 
     pub fn as_uimm(self) -> Uimm {
-        Uimm { data: self.data, valid_bits: self.valid_bits }
+        Uimm {
+            data: self.data,
+            valid_bits: self.valid_bits,
+        }
     }
 
     pub fn low32(&self) -> u32 {
@@ -74,21 +73,24 @@ impl Uimm {
         match xlen {
             Xlen::X32 => Usize::U32(self.data & MASK32[self.valid_bits as usize]),
             Xlen::X64 => Usize::U64((self.data & MASK32[self.valid_bits as usize]) as u64),
-            Xlen::X128 => panic!("Unsupported")
+            Xlen::X128 => panic!("Unsupported"),
         }
-    }  
+    }
 }
 
 impl core::fmt::Debug for Imm {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let num = self.data & MASK32[self.valid_bits as usize]; 
-        f.write_fmt(format_args!("{}", i32::from_ne_bytes(u32::to_ne_bytes(num))))
+        let num = self.data & MASK32[self.valid_bits as usize];
+        f.write_fmt(format_args!(
+            "{}",
+            i32::from_ne_bytes(u32::to_ne_bytes(num))
+        ))
     }
 }
 
 impl core::fmt::Debug for Uimm {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let num = self.data & MASK32[self.valid_bits as usize]; 
+        let num = self.data & MASK32[self.valid_bits as usize];
         f.write_fmt(format_args!("{}", num))
     }
 }

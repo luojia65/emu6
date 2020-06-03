@@ -1,40 +1,49 @@
+mod error;
 mod mem64;
 mod riscv;
-mod error;
 mod size;
 
-use clap::{Arg, App, crate_description, crate_authors, crate_version};
-use xmas_elf::{ElfFile, header, program::{self, SegmentData}};
-use mem64::{Endian, Physical, Protect, Config};
-use riscv::{Fetch, Execute, Xlen};
+use clap::{crate_authors, crate_description, crate_version, App, Arg};
+use mem64::{Config, Endian, Physical, Protect};
+use riscv::{Execute, Fetch, Xlen};
 use size::Usize;
+use xmas_elf::{
+    header,
+    program::{self, SegmentData},
+    ElfFile,
+};
 
 fn main() {
     let matches = App::new("emu6")
         .version(crate_version!())
         .author(crate_authors!())
         .about(crate_description!())
-        .arg(Arg::with_name("debug")
-            .short("d")
-            .help("Enable an interactive debug console"))
-        .arg(Arg::with_name("pc")
-            .long("pc")
-            .help("When using single executable, override ELF entry point")
-            .takes_value(true))
-        .arg(Arg::with_name("target programs")
-            .help("Input programs; typically one or multiple ELF files")
-            .required(true)
-            .index(1))
+        .arg(
+            Arg::with_name("debug")
+                .short("d")
+                .help("Enable an interactive debug console"),
+        )
+        .arg(
+            Arg::with_name("pc")
+                .long("pc")
+                .help("When using single executable, override ELF entry point")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("target programs")
+                .help("Input programs; typically one or multiple ELF files")
+                .required(true)
+                .index(1),
+        )
         .get_matches();
 
     let elf_file_name = matches.value_of("target programs").unwrap();
-    let elf_buf = std::fs::read(elf_file_name)
-        .expect("read target program");
+    let elf_buf = std::fs::read(elf_file_name).expect("read target program");
     let elf_file = ElfFile::new(&elf_buf).expect("open the elf buffer");
     match elf_file.header.pt2.type_().as_type() {
         header::Type::Executable => {
             // trace!("this is an elf executable!");
-        },
+        }
         fallback => {
             panic!("unsupported elf type: {:?}!", fallback);
         }
@@ -42,12 +51,12 @@ fn main() {
     let endian = match elf_file.header.pt1.data.as_data() {
         header::Data::BigEndian => Endian::Big,
         header::Data::LittleEndian => Endian::Little,
-        _ => panic!("invalid endian")
+        _ => panic!("invalid endian"),
     };
     let xlen = match elf_file.header.pt1.class.as_class() {
         header::Class::ThirtyTwo => Xlen::X32,
         header::Class::SixtyFour => Xlen::X64,
-        _ => panic!("unsupported xlen")
+        _ => panic!("unsupported xlen"),
     };
     let mut mem = Physical::new();
     for program_header in elf_file.program_iter() {
@@ -56,7 +65,10 @@ fn main() {
         }
         let vaddr = program_header.virtual_addr();
         let mem_size = program_header.mem_size();
-        let data = match program_header.get_data(&elf_file).expect("get program data") {
+        let data = match program_header
+            .get_data(&elf_file)
+            .expect("get program data")
+        {
             SegmentData::Undefined(data) => data,
             _ => unreachable!(),
         };
@@ -82,18 +94,19 @@ fn main() {
         }
     }
     let mem = &mut mem as *mut _; // todo!
-    let mut fetch = Fetch::new(unsafe { &*mem }, xlen); 
+    let mut fetch = Fetch::new(unsafe { &*mem }, xlen);
     let mut exec = Execute::new(unsafe { &mut *mem }, xlen);
-    let entry_addr = matches.value_of("pc")
+    let entry_addr = matches
+        .value_of("pc")
         .map(|s| match xlen {
             Xlen::X32 => Usize::U32(u32::from_str_radix(s, 16).expect("convert input pc value")),
             Xlen::X64 => Usize::U64(u64::from_str_radix(s, 16).expect("convert input pc value")),
-            Xlen::X128 => panic!("Unsupported")
+            Xlen::X128 => panic!("Unsupported"),
         })
         .unwrap_or(match xlen {
             Xlen::X32 => Usize::U32(elf_file.header.pt2.entry_point() as u32),
             Xlen::X64 => Usize::U64(elf_file.header.pt2.entry_point()),
-            Xlen::X128 => panic!("Unsupported")
+            Xlen::X128 => panic!("Unsupported"),
         });
     println!("Entry point: {:#016X}", entry_addr);
     let mut pc = entry_addr;
