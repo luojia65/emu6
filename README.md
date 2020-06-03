@@ -23,9 +23,10 @@ memory region and run at the same time.
 
 Software features:
 
-- [x] Load ELF files
+- [x] Load one ELF file
 - [ ] Interactive debug shell
 - [ ] DTB support
+- [ ] Support multiple ELF files
 - [ ] RISC-V ISA support
 - [ ] Thumb-2 ISA support
 - [ ] GDB server
