@@ -361,6 +361,7 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             (((ins & 0b0000_0000_0000_1111_1111_0000_0000_0000) >> 12) << 12);
         Imm::new(val, 12)
     };
+    let uimm_csr = Uimm::new((ins >> 15) & 0b11111, 5);
     let csr = ((ins >> 20) & 0xFFF) as u16;
     let u_type = UType { rd, imm: imm_u }; 
     let j_type = JType { rd, imm: imm_j };
@@ -368,7 +369,8 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     let i_type = IType { rd, rs1, funct3, imm: imm_i };
     let s_type = SType { rs1, rs2, funct3, imm: imm_s };
     let r_type = RType { rd, rs1, rs2, funct3, funct7 };
-    let csr_type = CsrType { rd, rs1uimm: rs1, funct3, csr };
+    let csr_r_type = CsrRType { rd, rs1, funct3, csr };
+    let csr_i_type = CsrIType { rd, uimm: uimm_csr, funct3, csr };
     let ans = match opcode {
         OPCODE_LUI => Lui(u_type).into(),
         OPCODE_AUIPC => Auipc(u_type).into(),
@@ -412,12 +414,12 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
                     Ebreak(i_type).into(),
                 _ => Err(())?,
             },
-            FUNCT3_SYSTEM_CSRRW => Csrrw(csr_type).into(),
-            FUNCT3_SYSTEM_CSRRS => Csrrs(csr_type).into(),
-            FUNCT3_SYSTEM_CSRRC => Csrrc(csr_type).into(),
-            FUNCT3_SYSTEM_CSRRWI => Csrrwi(csr_type).into(),
-            FUNCT3_SYSTEM_CSRRSI => Csrrsi(csr_type).into(),
-            FUNCT3_SYSTEM_CSRRCI => Csrrci(csr_type).into(),
+            FUNCT3_SYSTEM_CSRRW => Csrrw(csr_r_type).into(),
+            FUNCT3_SYSTEM_CSRRS => Csrrs(csr_r_type).into(),
+            FUNCT3_SYSTEM_CSRRC => Csrrc(csr_r_type).into(),
+            FUNCT3_SYSTEM_CSRRWI => Csrrwi(csr_i_type).into(),
+            FUNCT3_SYSTEM_CSRRSI => Csrrsi(csr_i_type).into(),
+            FUNCT3_SYSTEM_CSRRCI => Csrrci(csr_i_type).into(),
             _ => Err(())?,
         },
         OPCODE_OP_IMM => match funct3 {
@@ -769,18 +771,25 @@ pub struct CJType {
 
 #[derive(Debug, Clone, Copy)]
 pub enum RVZicsr {
-    Csrrw(CsrType),
-    Csrrs(CsrType),
-    Csrrc(CsrType),
-    Csrrwi(CsrType),
-    Csrrsi(CsrType),
-    Csrrci(CsrType),
+    Csrrw(CsrRType),
+    Csrrs(CsrRType),
+    Csrrc(CsrRType),
+    Csrrwi(CsrIType),
+    Csrrsi(CsrIType),
+    Csrrci(CsrIType),
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct CsrType {
+pub struct CsrRType {
     pub rd: u8,
-    pub rs1uimm: u8,
+    pub rs1: u8,
+    pub funct3: u8,
+    pub csr: u16,
+}
+#[derive(Debug, Clone, Copy)]
+pub struct CsrIType {
+    pub rd: u8,
+    pub uimm: Uimm,
     pub funct3: u8,
     pub csr: u16,
 }

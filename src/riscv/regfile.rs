@@ -128,6 +128,48 @@ impl core::fmt::Debug for XReg {
     }
 }
 
+// -- ISA spec definded CSRs
+// Floating point CSRs
+const CSR_FFLAGS: u16   = 0x001;
+const CSR_FRM: u16      = 0x002;
+const CSR_FCSR: u16     = 0x003;
+// Counters and timers
+const CSR_CYCLE: u16    = 0xC00;
+const CSR_TIME: u16     = 0xC01;
+const CSR_INSTRET: u16  = 0xC02;
+const CSR_CYCLEH: u16   = 0xC80;
+const CSR_TIMEH: u16    = 0xC81;
+const CSR_INSTRETH: u16 = 0xC82;
+
 pub struct Csr {
-    pub(crate) csr: [u64; 4096],
+    fcsr: u32,
+    xlen: Xlen,
+}
+
+impl Csr {
+    pub fn new(xlen: Xlen) -> Csr {
+        Csr { xlen, fcsr: 0 }
+    }
+
+    pub fn r_usize(&self, csr: u16) -> Usize {
+        match csr {
+            CSR_FFLAGS => self.u32_to_usize(self.fcsr),
+            _ => todo!()
+        }
+    }
+    
+    pub fn w_usize(&mut self, csr: u16, a: Usize) {
+        match csr {
+            CSR_FFLAGS => self.fcsr = a.low32(),
+            _ => todo!()
+        }
+    }
+
+    fn u32_to_usize(&self, a: u32) -> Usize {
+        match self.xlen {
+            Xlen::X32 => Usize::U32(a),
+            Xlen::X64 => Usize::U64(a as u64),
+            Xlen::X128 => panic!("unsupported xlen"),
+        }
+    }
 }

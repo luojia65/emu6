@@ -17,7 +17,7 @@ fn pc_to_mem_addr(pc: Usize) -> u64 {
 pub struct Execute<'a> {
     data_mem: &'a mut Physical<'a>,
     x: Box<XReg>,
-    csrs: Box<Csr>,
+    csr: Box<Csr>,
     xlen: Xlen,
 }
 
@@ -35,7 +35,7 @@ impl<'a> Execute<'a> {
         Execute { 
             data_mem,
             x: Box::new(XReg::new_zeroed(xlen)),
-            csrs: Box::new(Csr { csr: [0u64; 4096] }),
+            csr: Box::new(Csr::new(xlen)),
             xlen
         }
     }
@@ -228,31 +228,30 @@ impl<'a> Execute<'a> {
                 let shamt = shamt64r(self.x.r_usize(r.rs2));
                 self.x.w_isize(r.rd, self.x.r_isize(r.rs1) >> shamt);
             },
-            // // side effect?
-            // RVZicsr(Csrrw(csr)) => {
-            //     self.reg_w(csr.rd, self.csr_r(csr.csr));
-            //     self.csr_w(csr.csr, self.reg_r(csr.rs1uimm));
-            // },
-            // RVZicsr(Csrrs(csr)) => {
-            //     self.reg_w(csr.rd, self.csr_r(csr.csr));
-            //     self.csr_w(csr.csr, self.csr_r(csr.csr) | self.reg_r(csr.rs1uimm));
-            // },
-            // RVZicsr(Csrrc(csr)) => {
-            //     self.reg_w(csr.rd, self.csr_r(csr.csr));
-            //     self.csr_w(csr.csr, self.csr_r(csr.csr) & !self.reg_r(csr.rs1uimm));
-            // },
-            // RVZicsr(Csrrwi(csr)) => {
-            //     self.reg_w(csr.rd, self.csr_r(csr.csr));
-            //     self.csr_w(csr.csr, csr.rs1uimm as u64);
-            // },
-            // RVZicsr(Csrrsi(csr)) => {
-            //     self.reg_w(csr.rd, self.csr_r(csr.csr));
-            //     self.csr_w(csr.csr, self.csr_r(csr.csr) | (csr.rs1uimm as u64));
-            // },
-            // RVZicsr(Csrrci(csr)) => {
-            //     self.reg_w(csr.rd, self.csr_r(csr.csr));
-            //     self.csr_w(csr.csr, self.csr_r(csr.csr) & !(csr.rs1uimm as u64));
-            // },
+            RVZicsr(Csrrw(csr)) => {
+                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
+                self.csr.w_usize(csr.csr, self.x.r_usize(csr.rs1));
+            },
+            RVZicsr(Csrrs(csr)) => {
+                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
+                self.csr.w_usize(csr.csr, self.csr.r_usize(csr.csr) | self.x.r_usize(csr.rs1));
+            },
+            RVZicsr(Csrrc(csr)) => {
+                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
+                self.csr.w_usize(csr.csr, self.csr.r_usize(csr.csr) & !self.x.r_usize(csr.rs1));
+            },
+            RVZicsr(Csrrwi(csr)) => {
+                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
+                self.csr.w_usize(csr.csr, self.zext(csr.uimm));
+            },
+            RVZicsr(Csrrsi(csr)) => {
+                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
+                self.csr.w_usize(csr.csr, self.csr.r_usize(csr.csr) | self.zext(csr.uimm));
+            },
+            RVZicsr(Csrrci(csr)) => {
+                self.x.w_usize(csr.rd, self.csr.r_usize(csr.csr));
+                self.csr.w_usize(csr.csr, self.csr.r_usize(csr.csr) & !self.zext(csr.uimm));
+            },
             _ => panic!("todo"),
         }
         Ok(())
@@ -260,22 +259,6 @@ impl<'a> Execute<'a> {
 
     pub(crate) fn dump_regs(&self) {
         println!("{:?}", self.x);
-    }
-
-    fn csr_r(&self, csr: u16) -> u64 {
-        match self.xlen {
-            Xlen::X32 => self.csrs.csr[csr as usize] & 0xFFFFFFFF,
-            Xlen::X64 => self.csrs.csr[csr as usize],
-            Xlen::X128 => panic!("Unsupported")
-        }
-    }
-
-    fn csr_w(&mut self, csr: u16, data: u64) {
-        match self.xlen {
-            Xlen::X32 => self.csrs.csr[csr as usize] = data & 0xFFFFFFFF,
-            Xlen::X64 => self.csrs.csr[csr as usize] = data,
-            Xlen::X128 => panic!("Unsupported")
-        }
     }
 }
 
