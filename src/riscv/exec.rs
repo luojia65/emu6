@@ -89,8 +89,8 @@ fn exec_rv32i<'a, ZEXT: Fn(Uimm) -> Usize, SEXT: Fn(Imm) -> Isize>(
 ) -> Result<()> {
     use RV32I::*;
     match ins {
-        Lui(u) => x.w_usize(u.rd, zext(u.imm)),
-        Auipc(u) => x.w_usize(u.rd, pc + zext(u.imm)),
+        Lui(u) => x.w_isize(u.rd, sext(u.imm)),
+        Auipc(u) => x.w_usize(u.rd, pc + sext(u.imm)),
         Jal(j) => {
             let pc_link = *pc_nxt;
             *pc_nxt = pc + sext(j.imm);

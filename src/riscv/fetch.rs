@@ -511,7 +511,7 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             | (((ins >> 31) & 0b1) << 12);
         Imm::new(val, 12)
     };
-    let imm_u = Uimm::new(ins & 0xFFFFF000, 32);
+    let imm_u = Imm::new(ins & 0xFFFFF000, 32);
     let imm_j = {
         let val = (((ins & 0b1000_0000_0000_0000_0000_0000_0000_0000) >> 31) << 20)
             | (((ins & 0b0111_1111_1110_0000_0000_0000_0000_0000) >> 21) << 1)
@@ -800,7 +800,7 @@ pub enum RV64I {
 #[derive(Debug, Clone, Copy)]
 pub struct UType {
     pub rd: u8,
-    pub imm: Uimm,
+    pub imm: Imm,
 }
 
 #[derive(Debug, Clone, Copy)]
