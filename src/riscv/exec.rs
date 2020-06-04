@@ -49,7 +49,6 @@ impl<'a> Execute<'a> {
                 &mut self.data_mem,
                 pc,
                 pc_nxt,
-                |uimm| uimm.zext(xlen),
                 |imm| imm.sext(xlen),
             )?,
             Instruction::RV64I(ins) => exec_rv64i(
@@ -78,13 +77,12 @@ fn shamt32r(data: Usize) -> u32 {
     data.low32() & 0b11111
 }
 
-fn exec_rv32i<'a, ZEXT: Fn(Uimm) -> Usize, SEXT: Fn(Imm) -> Isize>(
+fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
     ins: RV32I,
     x: &mut XReg,
     data_mem: &mut Physical<'a>,
     pc: Usize,
     pc_nxt: &mut Usize,
-    zext: ZEXT,
     sext: SEXT,
 ) -> Result<()> {
     use RV32I::*;
@@ -174,7 +172,7 @@ fn exec_rv32i<'a, ZEXT: Fn(Uimm) -> Usize, SEXT: Fn(Imm) -> Isize>(
             x.w_zext8(i.rd, value);
         }
         Sltiu(i) => {
-            let value = if x.r_usize(i.rs1) < zext(i.imm.as_uimm()) {
+            let value = if x.r_usize(i.rs1) < sext(i.imm).cast_to_usize() {
                 1
             } else {
                 0
