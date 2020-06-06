@@ -59,16 +59,13 @@ impl Imm {
             Xlen::X128 => panic!("Unsupported"),
         }
     }
-
-    pub fn as_uimm(self) -> Uimm {
-        Uimm {
-            data: self.data,
-            valid_bits: self.valid_bits,
-        }
+    
+    pub fn low_u32(&self) -> u32 {
+        self.data & MASK32[self.valid_bits as usize]
     }
 
-    pub fn low32(&self) -> u32 {
-        self.data & MASK32[self.valid_bits as usize]
+    pub fn low_i32(&self) -> i32 {
+        i32::from_ne_bytes(u32::to_ne_bytes(self.low_u32()))
     }
 }
 

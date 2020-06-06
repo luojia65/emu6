@@ -26,25 +26,28 @@ impl XReg {
             Usize::U64(data) => Isize::I64(i64::from_ne_bytes(u64::to_ne_bytes(data))),
         }
     }
-    pub fn r_low8(&self, idx: u8) -> u8 {
+    pub fn r_u8(&self, idx: u8) -> u8 {
         match self.x[idx as usize] {
             Usize::U32(data) => (data & 0xFF) as u8,
             Usize::U64(data) => (data & 0xFF) as u8,
         }
     }
-    pub fn r_low16(&self, idx: u8) -> u16 {
+    pub fn r_u16(&self, idx: u8) -> u16 {
         match self.x[idx as usize] {
             Usize::U32(data) => (data & 0xFFFF) as u16,
             Usize::U64(data) => (data & 0xFFFF) as u16,
         }
     }
-    pub fn r_low32(&self, idx: u8) -> u32 {
+    pub fn r_u32(&self, idx: u8) -> u32 {
         match self.x[idx as usize] {
             Usize::U32(data) => (data & 0xFFFFFFFF) as u32,
             Usize::U64(data) => (data & 0xFFFFFFFF) as u32,
         }
     }
-    pub fn r_low64(&self, idx: u8) -> u64 {
+    pub fn r_i32(&self, idx: u8) -> i32 {
+        i32::from_ne_bytes(u32::to_ne_bytes(self.r_u32(idx)))
+    }
+    pub fn r_u64(&self, idx: u8) -> u64 {
         match self.x[idx as usize] {
             Usize::U32(_) => panic!("cannot read 64-bit value from 32-bit register"),
             Usize::U64(data) => data,
@@ -97,7 +100,8 @@ impl XReg {
     //         Usize::U64(data) => *data = val,
     //     }
     // }
-    pub fn w_sext8(&mut self, idx: u8, val: u8) {
+    pub fn w_sext8(&mut self, idx: u8, val: i8) {
+        let val = u8::from_ne_bytes(val.to_ne_bytes());
         if idx == 0 {
             return;
         }
@@ -113,7 +117,8 @@ impl XReg {
             }
         }
     }
-    pub fn w_sext16(&mut self, idx: u8, val: u16) {
+    pub fn w_sext16(&mut self, idx: u8, val: i16) {
+        let val = u16::from_ne_bytes(val.to_ne_bytes());
         if idx == 0 {
             return;
         }
@@ -131,7 +136,8 @@ impl XReg {
             }
         }
     }
-    pub fn w_sext32(&mut self, idx: u8, val: u32) {
+    pub fn w_sext32(&mut self, idx: u8, val: i32) {
+        let val = u32::from_ne_bytes(val.to_ne_bytes());
         if idx == 0 {
             return;
         }
@@ -147,7 +153,8 @@ impl XReg {
             }
         }
     }
-    pub fn w_sext64(&mut self, idx: u8, val: u64) {
+    pub fn w_sext64(&mut self, idx: u8, val: i64) {
+        let val = u64::from_ne_bytes(val.to_ne_bytes());
         if idx == 0 {
             return;
         }
@@ -196,7 +203,7 @@ impl Csr {
 
     pub fn w_usize(&mut self, csr: u16, a: Usize) {
         match csr {
-            CSR_FFLAGS => self.fcsr = a.low32(),
+            CSR_FFLAGS => self.fcsr = a.low_u32(),
             _ => todo!(),
         }
     }

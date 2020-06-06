@@ -70,11 +70,11 @@ impl<'a> Execute<'a> {
 }
 
 fn shamt32(imm: Imm) -> u32 {
-    imm.low32() & 0b11111
+    imm.low_u32() & 0b11111
 }
 
 fn shamt32r(data: Usize) -> u32 {
-    data.low32() & 0b11111
+    data.low_u32() & 0b11111
 }
 
 fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
@@ -131,17 +131,17 @@ fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
         }
         Lb(i) => {
             let addr = pc_to_mem_addr(x.r_usize(i.rs1) + sext(i.imm));
-            let data = data_mem.read_u8(addr)?;
+            let data = data_mem.read_i8(addr)?;
             x.w_sext8(i.rd, data);
         }
         Lh(i) => {
             let addr = pc_to_mem_addr(x.r_usize(i.rs1) + sext(i.imm));
-            let data = data_mem.read_u16(addr)?;
+            let data = data_mem.read_i16(addr)?;
             x.w_sext16(i.rd, data);
         }
         Lw(i) => {
             let addr = pc_to_mem_addr(x.r_usize(i.rs1) + sext(i.imm));
-            let data = data_mem.read_u32(addr)?;
+            let data = data_mem.read_i32(addr)?;
             x.w_sext32(i.rd, data);
         }
         Lbu(i) => {
@@ -156,15 +156,15 @@ fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
         }
         Sb(s) => data_mem.write_u8(
             pc_to_mem_addr(x.r_usize(s.rs1) + sext(s.imm)),
-            x.r_low8(s.rs2),
+            x.r_u8(s.rs2),
         )?,
         Sh(s) => data_mem.write_u16(
             pc_to_mem_addr(x.r_usize(s.rs1) + sext(s.imm)),
-            x.r_low16(s.rs2),
+            x.r_u16(s.rs2),
         )?,
         Sw(s) => data_mem.write_u32(
             pc_to_mem_addr(x.r_usize(s.rs1) + sext(s.imm)),
-            x.r_low32(s.rs2),
+            x.r_u32(s.rs2),
         )?,
         Addi(i) => x.w_usize(i.rd, x.r_usize(i.rs1) + sext(i.imm)),
         Slti(i) => {
@@ -244,18 +244,18 @@ fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
 }
 
 fn shamt64(imm: Imm) -> u32 {
-    imm.low32() & 0b111111
+    imm.low_u32() & 0b111111
 }
 
 fn shamt64r(data: Usize) -> u32 {
-    data.low32() & 0b111111
+    data.low_u32() & 0b111111
 }
 
 fn exec_rv64i<'a, SEXT: Fn(Imm) -> Isize>(
     ins: RV64I,
     x: &mut XReg,
     data_mem: &mut Physical<'a>,
-    sext: SEXT,
+    sext: SEXT
 ) -> Result<()> {
     use RV64I::*;
     match ins {
@@ -266,12 +266,12 @@ fn exec_rv64i<'a, SEXT: Fn(Imm) -> Isize>(
         }
         Ld(i) => {
             let addr = pc_to_mem_addr(x.r_usize(i.rs1) + sext(i.imm));
-            let data = data_mem.read_u64(addr)?;
+            let data = data_mem.read_i64(addr)?;
             x.w_sext64(i.rd, data);
         }
         Sd(s) => data_mem.write_u64(
             pc_to_mem_addr(x.r_usize(s.rs1) + sext(s.imm)),
-            x.r_low64(s.rs2),
+            x.r_u64(s.rs2),
         )?,
         Slli(i) => x.w_usize(i.rd, x.r_usize(i.rs1) << shamt64(i.imm)),
         Srli(i) => x.w_usize(i.rd, x.r_usize(i.rs1) >> shamt64(i.imm)),
@@ -288,15 +288,45 @@ fn exec_rv64i<'a, SEXT: Fn(Imm) -> Isize>(
             let shamt = shamt64r(x.r_usize(r.rs2));
             x.w_isize(r.rd, x.r_isize(r.rs1) >> shamt);
         }
-        Addiw(_i) => todo!(),
-        Slliw(_i) => todo!(),
-        Srliw(_i) => todo!(),
-        Sraiw(_i) => todo!(),
-        Addw(_r) => todo!(),
-        Subw(_r) => todo!(),
-        Sllw(_r) => todo!(),
-        Srlw(_r) => todo!(),
-        Sraw(_r) => todo!(),
+        Addiw(i) => {
+            x.w_sext32(i.rd, x.r_i32(i.rs1).wrapping_add(i.imm.low_i32()))
+        },
+        Slliw(i) => {
+            let val = x.r_i32(i.rs1)
+                .checked_shl(shamt32(i.imm)).unwrap_or(0);
+            x.w_sext32(i.rd, val)
+        },
+        Srliw(i) => {
+            let val = x.r_u32(i.rs1)
+                .checked_shr(shamt32(i.imm)).unwrap_or(0);
+            x.w_sext32(i.rd, i32::from_ne_bytes(val.to_be_bytes()))
+        },
+        Sraiw(i) => {
+            let val = x.r_i32(i.rs1)
+                .checked_shr(shamt32(i.imm)).unwrap_or(0);
+            x.w_sext32(i.rd, val)
+        },
+        Addw(r) => {
+            x.w_sext32(r.rd, x.r_i32(r.rs1).wrapping_add(x.r_i32(r.rs2)))
+        },
+        Subw(r) => {
+            x.w_sext32(r.rd, x.r_i32(r.rs1).wrapping_sub(x.r_i32(r.rs2)))
+        },
+        Sllw(r) => {
+            let val = x.r_i32(r.rs1)
+                .checked_shl(shamt32r(x.r_usize(r.rs2))).unwrap_or(0);
+            x.w_sext32(r.rd, val)
+        },
+        Srlw(r) => {
+            let val = x.r_u32(r.rs1)
+                .checked_shr(shamt32r(x.r_usize(r.rs2))).unwrap_or(0);
+            x.w_sext32(r.rd, i32::from_ne_bytes(val.to_be_bytes()))
+        },
+        Sraw(r) => {
+            let val = x.r_i32(r.rs1)
+                .checked_shr(shamt32r(x.r_usize(r.rs2))).unwrap_or(0);
+            x.w_sext32(r.rd, val)
+        },
     }
     Ok(())
 }
