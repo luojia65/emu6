@@ -16,10 +16,8 @@ Use `emu6 --help` for further usage instructions.
 
 ## Features
 
-The target of this project is to support emulating heterogeneous CPUs and several
-common SoC peripherals.
-For example it's expected to support one Cortex-M and one RISC-V core sharing same
-memory region and run at the same time.
+The target of this project is to support emulating heterogeneous CPUs and several common SoC peripherals in all mainstream host operating systems.
+For example on heterogeneous SoC, it's expected to support debugging one Cortex-M and one RISC-V core sharing same memory region running at the same time.
 
 Software features:
 
