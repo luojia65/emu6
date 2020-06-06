@@ -3,7 +3,7 @@ mod fetch;
 mod imm;
 mod regfile;
 
-pub use exec::Execute;
+pub use exec::{ExecError, Execute};
 pub use fetch::{Fetch, FetchError, Instruction};
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]

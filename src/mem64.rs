@@ -64,10 +64,10 @@ impl<'a> Physical<'a> {
             |addr| MemError::CannotRead { addr },
         )
     }
-    
+
     pub fn read_i8(&self, addr: u64) -> Result<i8> {
-        self.read_u8(addr).map(|x|
-            i8::from_ne_bytes(u8::to_ne_bytes(x)))
+        self.read_u8(addr)
+            .map(|x| i8::from_ne_bytes(u8::to_ne_bytes(x)))
     }
 
     pub fn read_u16(&self, addr: u64) -> Result<u16> {
@@ -78,10 +78,10 @@ impl<'a> Physical<'a> {
             |addr| MemError::CannotRead { addr },
         )
     }
-    
+
     pub fn read_i16(&self, addr: u64) -> Result<i16> {
-        self.read_u16(addr).map(|x|
-            i16::from_ne_bytes(u16::to_ne_bytes(x)))
+        self.read_u16(addr)
+            .map(|x| i16::from_ne_bytes(u16::to_ne_bytes(x)))
     }
 
     pub fn read_u32(&self, addr: u64) -> Result<u32> {
@@ -94,8 +94,8 @@ impl<'a> Physical<'a> {
     }
 
     pub fn read_i32(&self, addr: u64) -> Result<i32> {
-        self.read_u32(addr).map(|x|
-            i32::from_ne_bytes(u32::to_ne_bytes(x)))
+        self.read_u32(addr)
+            .map(|x| i32::from_ne_bytes(u32::to_ne_bytes(x)))
     }
 
     pub fn read_u64(&self, addr: u64) -> Result<u64> {
@@ -108,8 +108,8 @@ impl<'a> Physical<'a> {
     }
 
     pub fn read_i64(&self, addr: u64) -> Result<i64> {
-        self.read_u64(addr).map(|x|
-            i64::from_ne_bytes(u64::to_ne_bytes(x)))
+        self.read_u64(addr)
+            .map(|x| i64::from_ne_bytes(u64::to_ne_bytes(x)))
     }
 
     pub fn fetch_ins_u16(&self, addr: u64) -> Result<u16> {

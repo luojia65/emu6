@@ -41,7 +41,7 @@ RISC-V instruction set and features:
 - [ ] Extension A
 - [ ] Extension F
 - [ ] Extension D
-- [ ] Extension C
+- [x] Extension C
 - [ ] Extension V
 - [x] Zicsr
 - [ ] Zifencei

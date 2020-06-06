@@ -124,7 +124,7 @@ fn resolve_u16(ins: u16, xlen: Xlen) -> core::result::Result<Instruction, ()> {
         (OPCODE_C0, 0b000) if nzuimm549623 != 0 => RVC(Caddi4spn(CIWType {
             rd: c_reg(r24_c),
             funct3,
-            imm: Imm::new(nzuimm549623 as u32, 10),
+            uimm: Uimm::new(nzuimm549623 as u32, 10),
         }))
         .into(),
         (OPCODE_C0, 0b001) if xlen == Xlen::X32 || xlen == Xlen::X64 => RVC(Cfld(CLType {
@@ -922,7 +922,7 @@ pub struct CSSType {
 pub struct CIWType {
     pub rd: u8,
     pub funct3: u8,
-    pub imm: Imm,
+    pub uimm: Uimm,
 }
 
 #[derive(Debug, Clone, Copy)]

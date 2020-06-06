@@ -59,7 +59,7 @@ impl Imm {
             Xlen::X128 => panic!("Unsupported"),
         }
     }
-    
+
     pub fn low_u32(&self) -> u32 {
         self.data & MASK32[self.valid_bits as usize]
     }
