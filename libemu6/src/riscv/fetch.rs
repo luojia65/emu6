@@ -22,23 +22,17 @@ impl<'a> Fetch<'a> {
         Fetch { mem, xlen }
     }
 
-    pub fn next_instruction(&mut self, mut pc: Usize) -> Result<(Instruction, Usize)> {
+    pub fn fetch(&mut self, mut pc: Usize) -> Result<Instruction> {
         let addr = pc;
         let ins = self.next_u16(&mut pc)?;
         if ins & 0b11 != 0b11 {
-            return Ok((
-                resolve_u16(ins, self.xlen)
-                    .map_err(|_| FetchError::IllegalInstruction16 { addr, ins })?,
-                pc,
-            ));
+            return resolve_u16(ins, self.xlen)
+                    .map_err(|_| FetchError::IllegalInstruction16 { addr, ins }.into());
         }
         if ins & 0b11100 != 0b11100 {
             let ins = (ins as u32) + ((self.next_u16(&mut pc)? as u32) << 16);
-            return Ok((
-                resolve_u32(ins, self.xlen)
-                    .map_err(|_| FetchError::IllegalInstruction32 { addr, ins })?,
-                pc,
-            ));
+            return resolve_u32(ins, self.xlen)
+                    .map_err(|_| FetchError::IllegalInstruction32 { addr, ins }.into());
         }
         Err(FetchError::InstructionLength { addr })?
     }

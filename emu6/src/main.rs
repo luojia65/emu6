@@ -108,10 +108,10 @@ fn main() {
     println!("Entry point: {:#016X}", entry_addr);
     let mut pc = entry_addr;
     for _ in 0..10 {
-        let (ins, mut pc_nxt) = fetch.next_instruction(pc).unwrap();
+        let ins = fetch.fetch(pc).unwrap();
         println!("{:?}", ins);
-        exec.execute(ins, pc, &mut pc_nxt).unwrap();
+        let next_pc = exec.execute(ins, pc).unwrap();
         println!("{:?}", exec);
-        pc = pc_nxt;
+        pc = next_pc;
     }
 }

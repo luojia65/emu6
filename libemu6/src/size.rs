@@ -73,6 +73,16 @@ impl core::ops::Sub<Usize> for Usize {
     }
 }
 
+impl core::ops::Add<u32> for Usize {
+    type Output = Usize;
+    fn add(self, rhs: u32) -> Self::Output {
+        match self {
+            Usize::U32(a) => Usize::U32(a.wrapping_add(rhs)),
+            Usize::U64(a) => Usize::U64(a.wrapping_add(rhs as u64)),
+        }
+    }
+}
+
 impl core::ops::Add<Isize> for Usize {
     type Output = Usize;
     fn add(self, rhs: Isize) -> Self::Output {

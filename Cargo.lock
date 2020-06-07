@@ -48,7 +48,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "emu6-cli"
+name = "emu6"
 version = "0.1.0"
 dependencies = [
  "clap",

@@ -48,37 +48,42 @@ impl<'a> Execute<'a> {
         }
     }
 
+    // returns next PC value
     #[rustfmt::skip]
-    pub fn execute(&mut self, ins: Instruction, pc: Usize, pc_nxt: &mut Usize) -> Result<()> {
+    pub fn execute(&mut self, ins: Instruction, pc: Usize) -> Result<Usize> {
         let xlen = self.xlen;
-        match ins {
+        let next_pc = match ins {
             Instruction::RV32I(ins) => exec_rv32i(
                 ins,
                 &mut self.x,
                 &mut self.data_mem,
                 pc,
-                pc_nxt,
                 |imm| imm.sext(xlen),
             )?,
-            Instruction::RV64I(ins) => exec_rv64i(
-                ins,
-                &mut self.x,
-                &mut self.data_mem,
-                |imm| imm.sext(xlen),
-                || xlen == Xlen::X64 || xlen == Xlen::X128,
-            )?,
-            Instruction::RVZicsr(ins) => exec_rvzicsr(
-                ins,
-                &mut self.x,
-                &mut self.csr,
-                |uimm| uimm.zext(xlen)
-            )?,
+            Instruction::RV64I(ins) => {
+                exec_rv64i(
+                    ins,
+                    &mut self.x,
+                    &mut self.data_mem,
+                    |imm| imm.sext(xlen),
+                    || xlen == Xlen::X64 || xlen == Xlen::X128,
+                )?;
+                pc + 4
+            },
+            Instruction::RVZicsr(ins) => {
+                exec_rvzicsr(
+                    ins,
+                    &mut self.x,
+                    &mut self.csr,
+                    |uimm| uimm.zext(xlen)
+                )?;
+                pc + 4
+            },
             Instruction::RVC(ins) => exec_rvc(
                 ins, 
                 &mut self.x,
                 &mut self.data_mem,
                 pc, 
-                pc_nxt,
                 |imm| imm.sext(xlen),
                 |uimm| uimm.zext(xlen),
                 || xlen == Xlen::X64 || xlen == Xlen::X128,
@@ -87,8 +92,8 @@ impl<'a> Execute<'a> {
                 || true // todo: read from CSR
             )?,
             Instruction::RVF(_ins) => todo!()
-        }
-        Ok(())
+        };
+        Ok(next_pc)
     }
 }
 
@@ -105,51 +110,49 @@ fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
     x: &mut XReg,
     data_mem: &mut Physical<'a>,
     pc: Usize,
-    pc_nxt: &mut Usize,
     sext: SEXT,
-) -> Result<()> {
+) -> Result<Usize> {
     use RV32I::*;
+    let mut next_pc = pc + 4;
     match ins {
         Lui(u) => x.w_isize(u.rd, sext(u.imm)),
         Auipc(u) => x.w_usize(u.rd, pc + sext(u.imm)),
         Jal(j) => {
-            let pc_link = *pc_nxt;
-            *pc_nxt = pc + sext(j.imm);
-            x.w_usize(j.rd, pc_link);
+            x.w_usize(j.rd, next_pc);
+            next_pc = pc + sext(j.imm);
         }
         Jalr(i) => {
-            let pc_link = *pc_nxt;
-            *pc_nxt = x.r_usize(i.rs1) + sext(i.imm);
-            x.w_usize(i.rd, pc_link);
+            x.w_usize(i.rd, next_pc);
+            next_pc = x.r_usize(i.rs1) + sext(i.imm);
         }
         Beq(b) => {
             if x.r_usize(b.rs1) == x.r_usize(b.rs2) {
-                *pc_nxt = pc + sext(b.imm)
+                next_pc = pc + sext(b.imm)
             }
         }
         Bne(b) => {
             if x.r_usize(b.rs1) != x.r_usize(b.rs2) {
-                *pc_nxt = pc + sext(b.imm)
+                next_pc = pc + sext(b.imm)
             }
         }
         Blt(b) => {
             if x.r_isize(b.rs1) < x.r_isize(b.rs2) {
-                *pc_nxt = pc + sext(b.imm)
+                next_pc = pc + sext(b.imm)
             }
         }
         Bge(b) => {
             if x.r_isize(b.rs1) >= x.r_isize(b.rs2) {
-                *pc_nxt = pc + sext(b.imm)
+                next_pc = pc + sext(b.imm)
             }
         }
         Bltu(b) => {
             if x.r_usize(b.rs1) < x.r_usize(b.rs2) {
-                *pc_nxt = pc + sext(b.imm)
+                next_pc = pc + sext(b.imm)
             }
         }
         Bgeu(b) => {
             if x.r_usize(b.rs1) >= x.r_usize(b.rs2) {
-                *pc_nxt = pc + sext(b.imm)
+                next_pc = pc + sext(b.imm)
             }
         }
         Lb(i) => {
@@ -263,7 +266,7 @@ fn exec_rv32i<'a, SEXT: Fn(Imm) -> Isize>(
         Ecall(_) => todo!(),
         Ebreak(_) => todo!("ebreak"),
     }
-    Ok(())
+    Ok(next_pc)
 }
 
 fn shamt64(imm: Imm) -> u32 {
@@ -420,14 +423,13 @@ fn exec_rvc<
     x: &mut XReg,
     data_mem: &mut Physical<'a>,
     pc: Usize,
-    pc_nxt: &mut Usize,
     sext: SEXT,
     zext: ZEXT,
     has_x64: X64,
     has_x128: X128,
     has_f32: F32,
     has_f64: F64,
-) -> Result<()> {
+) -> Result<Usize> {
     let shamt_c = |imm: Imm| -> Result<u32> {
         if has_x128() {
             todo!("RV128I")
@@ -439,6 +441,7 @@ fn exec_rvc<
         Ok(s64)
     };
     use RVC::*;
+    let mut next_pc = pc + 2;
     // if r.rd!=0 or r.rs1 != 0 => prevent side effects
     match ins {
         Caddi4spn(ciw) => x.w_usize(ciw.rd, x.r_usize(X2_SP) + zext(ciw.uimm)),
@@ -512,9 +515,8 @@ fn exec_rvc<
             if has_x64() || has_x128() { // RV32C
                 return Err(ExecError::ExtensionNotSupported)?;
             }
-            let pc_link = *pc_nxt;
-            *pc_nxt = pc + sext(cj.target);
-            x.w_usize(X1_RA, pc_link);
+            x.w_usize(X1_RA, next_pc);
+            next_pc = pc + sext(cj.target);
         },
         Caddiw(ci) => {
             if !has_x64() && !has_x128() { // RV64C or RV128C
@@ -568,15 +570,15 @@ fn exec_rvc<
         Caddw(ca) => {
             x.w_sext32(ca.rdrs1, x.r_i32(ca.rdrs1).wrapping_add(x.r_i32(ca.rs2)))
         },
-        Cj(cj) => *pc_nxt = pc + sext(cj.target),
+        Cj(cj) => next_pc = pc + sext(cj.target),
         Cbeqz(cb) => {
             if x.r_usize(cb.rs1) == x.r_usize(0) {
-                *pc_nxt = pc + sext(cb.off)
+                next_pc = pc + sext(cb.off)
             }
         },
         Cbnez(cb) => {
             if x.r_usize(cb.rs1) != x.r_usize(0) {
-                *pc_nxt = pc + sext(cb.off)
+                next_pc = pc + sext(cb.off)
             }
         },
         Cslli(ci) => {
@@ -619,13 +621,12 @@ fn exec_rvc<
             let data = data_mem.read_i64(addr)?;
             x.w_sext64(ci.rdrs1, data);
         },
-        Cjr(cr) => *pc_nxt = x.r_usize(cr.rdrs1),
+        Cjr(cr) => next_pc = x.r_usize(cr.rdrs1),
         Cmv(cr) => x.w_usize(cr.rdrs1, x.r_usize(cr.rs2)),
         Cebreak(_cr) => todo!("ebreak"),
         Cjalr(cr) => {
-            let pc_link = *pc_nxt;
-            *pc_nxt = x.r_usize(cr.rdrs1);
-            x.w_usize(X1_RA, pc_link);
+            x.w_usize(X1_RA, next_pc);
+            next_pc = x.r_usize(cr.rdrs1);
         },
         Cadd(cr) => {
             x.w_usize(cr.rdrs1, x.r_usize(cr.rdrs1) + x.r_usize(cr.rs2));
@@ -662,5 +663,5 @@ fn exec_rvc<
             )?;
         },
     }
-    Ok(())
+    Ok(next_pc)
 }
