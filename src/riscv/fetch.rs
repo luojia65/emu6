@@ -628,17 +628,17 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             FUNCT3_LOAD_LB => Lb(i_type).into(),
             FUNCT3_LOAD_LH => Lh(i_type).into(),
             FUNCT3_LOAD_LW => Lw(i_type).into(),
-            FUNCT3_LOAD_LD if xlen == Xlen::X64 => Ld(i_type).into(),
+            FUNCT3_LOAD_LD if xlen != Xlen::X32 => Ld(i_type).into(),
             FUNCT3_LOAD_LBU => Lbu(i_type).into(),
             FUNCT3_LOAD_LHU => Lhu(i_type).into(),
-            FUNCT3_LOAD_LWU if xlen == Xlen::X64 => Lwu(i_type).into(),
+            FUNCT3_LOAD_LWU if xlen != Xlen::X32 => Lwu(i_type).into(),
             _ => Err(())?,
         },
         OPCODE_STORE => match funct3 {
             FUNCT3_STORE_SB => Sb(s_type).into(),
             FUNCT3_STORE_SH => Sh(s_type).into(),
             FUNCT3_STORE_SW => Sw(s_type).into(),
-            FUNCT3_STORE_SD if xlen == Xlen::X64 => Sd(s_type).into(),
+            FUNCT3_STORE_SD if xlen != Xlen::X32 => Sd(s_type).into(),
             _ => Err(())?,
         },
         OPCODE_MISC_MEM => match funct3 {
@@ -831,11 +831,11 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
                     FUNCT2_FMT_S => Fcvtwus(r_type).into(),
                     _ => Err(())?
                 },
-                FUNCT_RS2_CVT_L => match funct2 {
+                FUNCT_RS2_CVT_L if xlen != Xlen::X32 => match funct2 {
                     FUNCT2_FMT_S => Fcvtls(r_type).into(),
                     _ => Err(())?
                 },
-                FUNCT_RS2_CVT_LU => match funct2 {
+                FUNCT_RS2_CVT_LU if xlen != Xlen::X32 => match funct2 {
                     FUNCT2_FMT_S => Fcvtlus(r_type).into(),
                     _ => Err(())?
                 },
@@ -851,11 +851,11 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
                     FUNCT2_FMT_S => Fcvtswu(r_type).into(),
                     _ => Err(())?
                 },
-                FUNCT_RS2_CVT_L => match funct2 {
+                FUNCT_RS2_CVT_L if xlen != Xlen::X32 => match funct2 {
                     FUNCT2_FMT_S => Fcvtsl(r_type).into(),
                     _ => Err(())?
                 },
-                FUNCT_RS2_CVT_LU => match funct2 {
+                FUNCT_RS2_CVT_LU if xlen != Xlen::X32 => match funct2 {
                     FUNCT2_FMT_S => Fcvtslu(r_type).into(),
                     _ => Err(())?
                 },
