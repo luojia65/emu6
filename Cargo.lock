@@ -48,13 +48,11 @@ dependencies = [
 ]
 
 [[package]]
-name = "emu6"
+name = "emu6-cli"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "bitflags",
  "clap",
- "thiserror",
+ "libemu6",
  "xmas-elf",
 ]
 
@@ -72,6 +70,15 @@ name = "libc"
 version = "0.2.71"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9457b06509d27052635f90d6466700c65095fdf75409b3fbdd903e988b886f49"
+
+[[package]]
+name = "libemu6"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitflags",
+ "thiserror",
+]
 
 [[package]]
 name = "proc-macro2"

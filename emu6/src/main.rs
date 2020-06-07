@@ -1,13 +1,9 @@
-mod error;
-mod float;
-mod mem64;
-mod riscv;
-mod size;
-
+use libemu6::{
+    mem64::{Config, Endian, Physical, Protect},
+    riscv::{Execute, Fetch, Xlen},
+    size::Usize
+};
 use clap::{crate_authors, crate_description, crate_version, App, Arg};
-use mem64::{Config, Endian, Physical, Protect};
-use riscv::{Execute, Fetch, Xlen};
-use size::Usize;
 use xmas_elf::{
     header,
     program::{self, SegmentData},

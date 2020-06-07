@@ -51,3 +51,10 @@ RISC-V instruction set and features:
 - [ ] Sv48
 - [ ] PLIC
 - [ ] CLINT
+
+## Contribution Q&A
+
+### Write into plugins or into project itself
+
+If the target feature is defined in the ISA's official manual, write into project
+itself. If it's vendor defined, write as plugins.
