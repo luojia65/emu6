@@ -170,6 +170,15 @@ impl core::fmt::Debug for XReg {
         f.debug_list().entries(self.x.iter()).finish()
     }
 }
+pub struct FReg {
+    f: [u128; 32],
+}
+
+impl FReg {
+    pub fn new_zeroed() -> FReg {
+        FReg { f: [0u128; 32] }
+    }
+}
 
 // -- ISA spec definded CSRs
 // Floating point CSRs

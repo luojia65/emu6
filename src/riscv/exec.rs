@@ -1,6 +1,6 @@
 use super::fetch::*;
 use super::imm::{Imm, Uimm};
-use super::regfile::{Csr, XReg};
+use super::regfile::{Csr, XReg, FReg};
 use super::*;
 use crate::error::Result;
 use crate::mem64::Physical;
@@ -23,6 +23,7 @@ fn pc_to_mem_addr(pc: Usize) -> u64 {
 pub struct Execute<'a> {
     data_mem: &'a mut Physical<'a>,
     x: Box<XReg>,
+    f: Box<FReg>,
     csr: Box<Csr>,
     xlen: Xlen,
 }
@@ -41,6 +42,7 @@ impl<'a> Execute<'a> {
         Execute {
             data_mem,
             x: Box::new(XReg::new_zeroed(xlen)),
+            f: Box::new(FReg::new_zeroed()),
             csr: Box::new(Csr::new(xlen)),
             xlen,
         }
