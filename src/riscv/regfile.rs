@@ -174,8 +174,8 @@ impl core::fmt::Debug for XReg {
 // -- ISA spec definded CSRs
 // Floating point CSRs
 const CSR_FFLAGS: u16 = 0x001;
-// const CSR_FRM: u16 = 0x002;
-// const CSR_FCSR: u16 = 0x003;
+const CSR_FRM: u16 = 0x002;
+const CSR_FCSR: u16 = 0x003;
 // Counters and timers
 // const CSR_CYCLE: u16 = 0xC00;
 // const CSR_TIME: u16 = 0xC01;
@@ -196,14 +196,18 @@ impl Csr {
 
     pub fn r_usize(&self, csr: u16) -> Usize {
         match csr {
-            CSR_FFLAGS => self.u32_to_usize(self.fcsr),
+            CSR_FFLAGS => self.u32_to_usize(self.fcsr & 0b11111),
+            CSR_FRM => self.u32_to_usize((self.fcsr >> 5) & 0b111),
+            CSR_FCSR => self.u32_to_usize(self.fcsr & 0b11111111),
             _ => todo!(),
         }
     }
 
     pub fn w_usize(&mut self, csr: u16, a: Usize) {
         match csr {
-            CSR_FFLAGS => self.fcsr = a.low_u32(),
+            CSR_FFLAGS => self.fcsr = (self.fcsr & !0b11111) | a.low_u32() & 0b11111,
+            CSR_FRM => self.fcsr = (self.fcsr & !0b11100000) | ((a.low_u32() & 0b111) << 5),
+            CSR_FCSR => self.fcsr = a.low_u32() & 0b11111111,
             _ => todo!(),
         }
     }
