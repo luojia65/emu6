@@ -84,6 +84,7 @@ impl<'a> Execute<'a> {
                 || true, // todo: read from CSR
                 || true // todo: read from CSR
             )?,
+            Instruction::RVF(_ins) => todo!()
         }
         Ok(())
     }

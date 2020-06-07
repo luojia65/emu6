@@ -425,19 +425,26 @@ fn c_reg(regid: u8) -> u8 {
     regid + 8
 }
 
-const OPCODE_LOAD: u32 = 0b000_0011;
-const OPCODE_MISC_MEM: u32 = 0b000_1111;
-const OPCODE_OP_IMM: u32 = 0b001_0011;
-const OPCODE_AUIPC: u32 = 0b001_0111;
-const OPCODE_OP_IMM32: u32 = 0b001_1011;
-const OPCODE_STORE: u32 = 0b010_0011;
-const OPCODE_OP: u32 = 0b011_0011;
-const OPCODE_LUI: u32 = 0b011_0111;
-const OPCODE_OP_32: u32 = 0b011_1011;
-const OPCODE_BRANCH: u32 = 0b110_0011;
-const OPCODE_JALR: u32 = 0b110_0111;
-const OPCODE_JAL: u32 = 0b110_1111;
-const OPCODE_SYSTEM: u32 = 0b111_0011;
+const OPCODE_LOAD: u32      = 0b000_0011;
+const OPCODE_LOAD_FP: u32   = 0b000_0111;
+const OPCODE_MISC_MEM: u32  = 0b000_1111;
+const OPCODE_OP_IMM: u32    = 0b001_0011;
+const OPCODE_AUIPC: u32     = 0b001_0111;
+const OPCODE_OP_IMM32: u32  = 0b001_1011;
+const OPCODE_STORE: u32     = 0b010_0011;
+const OPCODE_STORE_FP: u32  = 0b010_0111;
+const OPCODE_OP: u32        = 0b011_0011;
+const OPCODE_LUI: u32       = 0b011_0111;
+const OPCODE_OP_32: u32     = 0b011_1011;
+const OPCODE_FMADD: u32     = 0b100_0011;
+const OPCODE_FMSUB: u32     = 0b100_0111;
+const OPCODE_FNMSUB: u32    = 0b100_1011;
+const OPCODE_FNMADD: u32    = 0b100_1111;
+const OPCODE_FP: u32        = 0b101_0011;
+const OPCODE_BRANCH: u32    = 0b110_0011;
+const OPCODE_JALR: u32      = 0b110_0111;
+const OPCODE_JAL: u32       = 0b110_1111;
+const OPCODE_SYSTEM: u32    = 0b111_0011;
 
 const FUNCT3_LOAD_LB: u8 = 0b000;
 const FUNCT3_LOAD_LH: u8 = 0b001;
@@ -487,8 +494,41 @@ const FUNCT12_SYSTEM_EBREAK: u32 = 0b001;
 
 const FUNCT3_MISC_MEM_FENCE: u8 = 0b000;
 
+const FUNCT3_WIDTH_W: u8 = 0b010;
+
+const FUNCT2_FMT_S: u8 = 0b00;
+
+const FUNCT_RS3_FP_ADD: u8 = 0b00000;
+const FUNCT_RS3_FP_SUB: u8 = 0b00001;
+const FUNCT_RS3_FP_MUL: u8 = 0b00010;
+const FUNCT_RS3_FP_DIV: u8 = 0b00011;
+const FUNCT_RS3_FP_SGNJ: u8 = 0b00100;
+const FUNCT_RS3_FP_MIN_MAX: u8 = 0b00101;
+const FUNCT_RS3_FP_SQRT: u8 = 0b01011;
+const FUNCT_RS3_FP_CMP: u8 = 0b10100;
+const FUNCT_RS3_FP_FCVTX: u8 = 0b11000; // fcvt.{w|l}[u].s, fcvt.int.fmt
+const FUNCT_RS3_FP_XCVTF: u8 = 0b11010; // fcvt.s.{w|l}[u], fcvt.fmt.int
+const FUNCT_RS3_FP_FMVX_CLASS: u8 = 0b11100; // fmv.x.w
+const FUNCT_RS3_FP_XMVF: u8 = 0b11110; // fmv.w.x
+
+const FUNCT3_FP_MIN: u8 = 0b000;
+const FUNCT3_FP_MAX: u8 = 0b001;
+
+const FUNCT3_FP_SGNJ: u8 = 0b000;
+const FUNCT3_FP_SGNJN: u8 = 0b001;
+const FUNCT3_FP_SGNJX: u8 = 0b010;
+
+const FUNCT3_FP_EQ: u8 = 0b010;
+const FUNCT3_FP_LT: u8 = 0b001;
+const FUNCT3_FP_LE: u8 = 0b000;
+
+const FUNCT_RS2_CVT_W: u8 = 0b00000;
+const FUNCT_RS2_CVT_WU: u8 = 0b00001;
+const FUNCT_RS2_CVT_L: u8 = 0b00010;
+const FUNCT_RS2_CVT_LU: u8 = 0b00011;
+
 fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
-    use {self::RVZicsr::*, self::RV32I::*, self::RV64I::*};
+    use {self::RVZicsr::*, self::RV32I::*, self::RV64I::*, self::RVF::*};
     let opcode = ins & 0b111_1111;
     let rd = ((ins >> 7) & 0b1_1111) as u8;
     let rs1 = ((ins >> 15) & 0b1_1111) as u8;
@@ -496,6 +536,8 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
     let funct3 = ((ins >> 12) & 0b111) as u8;
     let funct7 = ((ins >> 25) & 0b111_1111) as u8;
     let funct12 = (ins >> 20) & 0b1111_1111_1111;
+    let rs3 = ((ins >> 27) & 0b1_1111) as u8;
+    let funct2 = ((ins >> 25) & 0b11) as u8;
     let imm_i = {
         let val = (ins >> 20) & 0b1111_1111_1111;
         Imm::new(val, 12)
@@ -559,6 +601,14 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
         uimm: uimm_csr,
         funct3,
         csr,
+    };
+    let r4_type = R4Type {
+        rd,
+        rs1,
+        rs2,
+        rs3,
+        funct3,
+        funct2,
     };
     let ans = match opcode {
         OPCODE_LUI => Lui(u_type).into(),
@@ -685,6 +735,148 @@ fn resolve_u32(ins: u32, xlen: Xlen) -> core::result::Result<Instruction, ()> {
             },
             _ => Err(())?,
         },
+        OPCODE_LOAD_FP => match funct3 {
+            FUNCT3_WIDTH_W => Flw(i_type).into(),
+            _ => Err(())?
+        },
+        OPCODE_STORE_FP => match funct3 {
+            FUNCT3_WIDTH_W => Fsw(s_type).into(),
+            _ => Err(())?
+        },
+        OPCODE_FMADD => match funct2 {
+            FUNCT2_FMT_S => Fmadds(r4_type).into(),
+            _ => Err(())?
+        },
+        OPCODE_FMSUB => match funct2 {
+            FUNCT2_FMT_S => Fmsubs(r4_type).into(),
+            _ => Err(())?
+        },
+        OPCODE_FNMSUB => match funct2 {
+            FUNCT2_FMT_S => Fnmsubs(r4_type).into(),
+            _ => Err(())?
+        },
+        OPCODE_FNMADD => match funct2 {
+            FUNCT2_FMT_S => Fnmadds(r4_type).into(),
+            _ => Err(())?
+        },
+        OPCODE_FP => match rs3 {
+            FUNCT_RS3_FP_ADD => match funct2 {
+                FUNCT2_FMT_S => Fadds(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_SUB => match funct2 {
+                FUNCT2_FMT_S => Fsubs(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_MUL => match funct2 {
+                FUNCT2_FMT_S => Fmuls(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_DIV => match funct2 {
+                FUNCT2_FMT_S => Fdivs(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_SQRT if rs2 == 0 => match funct2 {
+                FUNCT2_FMT_S => Fsqrts(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_MIN_MAX => match funct3 {
+                FUNCT3_FP_MIN => match funct2 {
+                    FUNCT2_FMT_S => Fmins(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT3_FP_MAX => match funct2 {
+                    FUNCT2_FMT_S => Fmaxs(r_type).into(),
+                    _ => Err(())?
+                },
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_SGNJ => match funct3 {
+                FUNCT3_FP_SGNJ => match funct2 {
+                    FUNCT2_FMT_S => Fsgnjs(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT3_FP_SGNJN => match funct2 {
+                    FUNCT2_FMT_S => Fsgnjns(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT3_FP_SGNJX => match funct2 {
+                    FUNCT2_FMT_S => Fsgnjxs(r_type).into(),
+                    _ => Err(())?
+                },
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_CMP => match funct3 {
+                FUNCT3_FP_EQ => match funct2 {
+                    FUNCT2_FMT_S => Feqs(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT3_FP_LT => match funct2 {
+                    FUNCT2_FMT_S => Flts(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT3_FP_LE => match funct2 {
+                    FUNCT2_FMT_S => Fles(r_type).into(),
+                    _ => Err(())?
+                },
+                _ => Err(())?
+            },
+            // fcvt.{w|l}[u].s, fcvt.int.fmt
+            FUNCT_RS3_FP_FCVTX => match rs2 {
+                FUNCT_RS2_CVT_W => match funct2 {
+                    FUNCT2_FMT_S => Fcvtws(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT_RS2_CVT_WU => match funct2 {
+                    FUNCT2_FMT_S => Fcvtwus(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT_RS2_CVT_L => match funct2 {
+                    FUNCT2_FMT_S => Fcvtls(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT_RS2_CVT_LU => match funct2 {
+                    FUNCT2_FMT_S => Fcvtlus(r_type).into(),
+                    _ => Err(())?
+                },
+                _ => Err(())?
+            } 
+            // fcvt.s.{w|l}[u], fcvt.fmt.int
+            FUNCT_RS3_FP_XCVTF => match rs2 {
+                FUNCT_RS2_CVT_W => match funct2 {
+                    FUNCT2_FMT_S => Fcvtsw(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT_RS2_CVT_WU => match funct2 {
+                    FUNCT2_FMT_S => Fcvtswu(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT_RS2_CVT_L => match funct2 {
+                    FUNCT2_FMT_S => Fcvtsl(r_type).into(),
+                    _ => Err(())?
+                },
+                FUNCT_RS2_CVT_LU => match funct2 {
+                    FUNCT2_FMT_S => Fcvtslu(r_type).into(),
+                    _ => Err(())?
+                },
+                _ => Err(())?
+            },
+            // fmv.x.w
+            FUNCT_RS3_FP_FMVX_CLASS if rs2 == 0 && funct3 == 0 => match funct2 {
+                FUNCT2_FMT_S => Fmvxw(r_type).into(),
+                _ => Err(())?
+            },
+            FUNCT_RS3_FP_FMVX_CLASS if rs2 == 0 && funct3 == 1 => match funct2 {
+                FUNCT2_FMT_S => Fclasss(r_type).into(),
+                _ => Err(())?
+            },
+            // fmv.w.x
+            FUNCT_RS3_FP_XMVF if rs2 == 0 && funct3 == 0 => match funct2 {
+                FUNCT2_FMT_S => Fmvwx(r_type).into(),
+                _ => Err(())?
+            },
+            _ => Err(())?
+        }, // opcode_fp
         _ => Err(())?,
     };
     Ok(ans)
@@ -696,6 +888,7 @@ pub enum Instruction {
     RV64I(RV64I),
     RVC(RVC),
     RVZicsr(RVZicsr),
+    RVF(RVF),
 }
 
 impl From<RV32I> for Instruction {
@@ -719,6 +912,12 @@ impl From<RVC> for Instruction {
 impl From<RVZicsr> for Instruction {
     fn from(src: RVZicsr) -> Instruction {
         Instruction::RVZicsr(src)
+    }
+}
+
+impl From<RVF> for Instruction {
+    fn from(src: RVF) -> Instruction {
+        Instruction::RVF(src)
     }
 }
 
@@ -986,3 +1185,50 @@ pub struct CsrIType {
     pub funct3: u8,
     pub csr: u16,
 }
+
+#[derive(Debug, Clone, Copy)]
+pub enum RVF {
+    // RV32F 
+    Flw(IType),
+    Fsw(SType),
+    Fmadds(R4Type),
+    Fmsubs(R4Type),
+    Fnmadds(R4Type),
+    Fnmsubs(R4Type),
+    Fadds(RType),
+    Fsubs(RType),
+    Fmuls(RType),
+    Fdivs(RType),
+    Fsqrts(RType),
+    Fsgnjs(RType),
+    Fsgnjns(RType),
+    Fsgnjxs(RType),
+    Fmins(RType),
+    Fmaxs(RType),
+    Fcvtws(RType),
+    Fcvtwus(RType),
+    Fmvxw(RType),
+    Feqs(RType),
+    Flts(RType),
+    Fles(RType),
+    Fclasss(RType),
+    Fcvtsw(RType),
+    Fcvtswu(RType),
+    Fmvwx(RType),
+    // RV64F
+    Fcvtls(RType),
+    Fcvtlus(RType),
+    Fcvtsl(RType),
+    Fcvtslu(RType),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct R4Type {
+    pub rd: u8,
+    pub rs1: u8,
+    pub rs2: u8,
+    pub rs3: u8,
+    pub funct3: u8,
+    pub funct2: u8,
+}
+
