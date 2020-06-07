@@ -23,6 +23,7 @@ Software features:
 
 - [x] Load one ELF file
 - [ ] Interactive debug shell
+- [ ] A friendly plugin system
 - [ ] DTB support
 - [ ] Support multiple ELF files
 - [ ] RISC-V ISA support
