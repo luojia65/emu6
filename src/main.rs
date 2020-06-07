@@ -1,4 +1,5 @@
 mod error;
+mod float;
 mod mem64;
 mod riscv;
 mod size;
