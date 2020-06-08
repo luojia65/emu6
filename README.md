@@ -52,6 +52,20 @@ RISC-V instruction set and features:
 - [ ] PLIC
 - [ ] CLINT
 
+## Build
+
+This project is written in Rust. You need to [have Rust toolchain installed] before all the processes.
+
+[have Rust toolchain installed](https://rustup.rs)
+
+### Run from soruce
+
+```
+git clone https://github.com/luojia65/emu6
+cd emu6
+cargo run
+```
+
 ## Contribution Q&A
 
 ### Write into plugins or into project itself

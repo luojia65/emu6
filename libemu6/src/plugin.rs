@@ -48,12 +48,71 @@ pub struct MemoryExtVTable {
     pub api_version: u32,
     pub memory_new: extern "C" fn() -> *mut (),
     pub memory_unref: extern "C" fn(this: *mut ()),
+    // val_out <- MEM[base_addr]
     pub read_nbytes: extern "C" fn(
-        this: *mut (), addr: *const (), 
-        val_out: *mut (), endian: Endian, nbytes: u8
+        this: *mut (), addr_len_bytes: u32, base_addr: *const u8, 
+        val_out: *mut u8, nbytes: u32, endian: Endian, 
     ) -> MemResult,
     pub write_nbytes: extern "C" fn(
-        this: *mut (), addr: *const (), 
-        val_in: *const (), endian: Endian, nbytes: u8
+        this: *mut (), addr_len_bytes: u32, base_addr: *mut u8, 
+        val_in: *const u8, nbytes: u32, endian: Endian, 
+    ) -> MemResult,
+    /* for i in 0..nelems {
+           if mask[i * elem_width_bytes] == 1 {
+               *(val_out + i * elem_width_bytes) = 
+                    MEM[base_addr + i * elem_width_bytes]
+           }
+       } */
+    pub read_unit_stride: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, base_addr: *const u8, 
+        elem_width_bytes: u32, mask: *const u8, 
+        val_out: *mut u8, nelems: u32, endian: Endian, 
+    ) -> MemResult,
+    pub write_unit_stride: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, base_addr: *mut u8, 
+        elem_width_bytes: u32, mask: *const u8, 
+        val_in: *const u8, nelems: u32, endian: Endian, 
+    ) -> MemResult,
+    /*  for i in 0..nelems {
+            if mask[i * elem_width_bytes] == 1 {
+                *(val_out + i * elem_width_bytes) = 
+                    MEM[base_addr + i * stride_bytes]
+            }
+        } */
+    pub read_strided: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, 
+        base_addr: *const u8, stride_bytes: *const u8, 
+        elem_width_bytes: u32, mask: *const u8, 
+        val_out: *mut u8, nelems: u32, endian: Endian, 
+    ) -> MemResult,
+    pub write_strided: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, 
+        base_addr: *mut u8, stride_bytes: *const u8, 
+        elem_width_bytes: u32, mask: *const u8, 
+        val_in: *const u8, nelems: u32, endian: Endian, 
+    ) -> MemResult,
+    /*  for i in 0..nelems {
+            if mask[i * elem_width_bytes] == 1 {
+                *(val_out + i * elem_width_bytes) = 
+                    MEM[base_addr + index_array[i * addr_len_bytes]]
+            }
+        } */
+    pub read_indexed: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, 
+        base_addr: *const u8, index_array: *const u8,
+        elem_width_bytes: u32, mask: *const u8, 
+        val_out: *mut u8, nelems: u32, endian: Endian, 
+    ) -> MemResult,
+    pub write_indexed_unordered: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, 
+        base_addr: *mut u8, index_array: *const u8,
+        elem_width_bytes: u32, mask: *const u8, 
+        val_in: *const u8, nelems: u32, endian: Endian, 
+    ) -> MemResult,
+    pub write_indexed_ordered: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, 
+        base_addr: *mut u8, index_array: *const u8,
+        elem_width_bytes: u32, mask: *const u8, 
+        val_in: *const u8, nelems: u32, endian: Endian, 
     ) -> MemResult,
 }
