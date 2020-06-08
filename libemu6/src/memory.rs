@@ -91,6 +91,43 @@ impl Extension {
         };
         addr_from..addr_to
     }
+
+    fn read_u8(&self, offset: Usize) -> Result<u8> {
+        let (ptr, len) = ext_usize_to_ptr_len(&offset);
+        let mut val: MaybeUninit<u8> = MaybeUninit::uninit();
+        let ans = (self.vtable.read_u8)(self.instance, len, ptr, val.as_mut_ptr());
+        ext_map_result(ans).map(|_| unsafe { val.assume_init() })
+    }
+
+    fn exec_u8(&self, offset: Usize) -> Result<u8> {
+        let (ptr, len) = ext_usize_to_ptr_len(&offset);
+        let mut val: MaybeUninit<u8> = MaybeUninit::uninit();
+        let ans = (self.vtable.exec_u8)(self.instance, len, ptr, val.as_mut_ptr());
+        ext_map_result(ans).map(|_| unsafe { val.assume_init() })
+    }
+
+    fn write_u8(&self, offset: Usize, val: u8) -> Result<()> {
+        let (ptr, len) = ext_usize_to_ptr_len(&offset);
+        let ans = (self.vtable.write_u8)(self.instance, len, ptr, &val as *const _);
+        ext_map_result(ans)
+    }
+}
+
+fn ext_usize_to_ptr_len(n: &Usize) -> (*const u8, u32) {
+    match n {
+        Usize::U32(a) => (a as *const u32 as *const u8, 4),
+        Usize::U64(a) => (a as *const u64 as *const u8, 8),
+    }
+}
+
+fn ext_map_result(a: crate::plugin::MemResult) -> Result<()> {
+    use crate::plugin::MemResult;
+    match a {
+        MemResult::Ok => Ok(()),
+        MemResult::NoMemory => Err(Error::NoMemory),
+        MemResult::CannotExecute => Err(Error::CannotExecute),
+        MemResult::CannotWrite => Err(Error::CannotWrite),
+    }
 }
 
 impl Drop for Extension {
@@ -158,3 +195,12 @@ bitflags::bitflags! {
         const EXECUTE = 0b10;
     }
 }
+
+#[non_exhaustive]
+pub enum Error {
+    NoMemory,
+    CannotWrite,
+    CannotExecute,
+}
+
+type Result<T> = core::result::Result<T, Error>;
