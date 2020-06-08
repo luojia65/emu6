@@ -48,13 +48,32 @@ pub struct MemoryExtVTable {
     pub api_version: u32,
     pub memory_new: extern "C" fn() -> *mut (),
     pub memory_unref: extern "C" fn(this: *mut ()),
-    // val_out <- MEM[base_addr]
+    pub get_range: extern "C" fn(
+        this: *mut (), addr_len_bytes: *mut u32, 
+        addr_from: *mut u8, addr_to: *mut u8,
+    ),
+    pub read_u8: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, addr_base: *const u8, 
+        val_out: *mut u8,
+    ) -> MemResult,
+    pub exec_u8: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, addr_base: *const u8, 
+        val_out: *mut u8, 
+    ) -> MemResult,
+    pub write_u8: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, addr_base: *mut u8, 
+        val_in: *const u8,
+    ) -> MemResult,
     pub read_nbytes: extern "C" fn(
-        this: *mut (), addr_len_bytes: u32, base_addr: *const u8, 
+        this: *mut (), addr_len_bytes: u32, addr_base: *const u8, 
+        val_out: *mut u8, nbytes: u32, endian: Endian, 
+    ) -> MemResult,
+    pub exec_nbytes: extern "C" fn(
+        this: *mut (), addr_len_bytes: u32, addr_base: *const u8, 
         val_out: *mut u8, nbytes: u32, endian: Endian, 
     ) -> MemResult,
     pub write_nbytes: extern "C" fn(
-        this: *mut (), addr_len_bytes: u32, base_addr: *mut u8, 
+        this: *mut (), addr_len_bytes: u32, addr_base: *mut u8, 
         val_in: *const u8, nbytes: u32, endian: Endian, 
     ) -> MemResult,
 }

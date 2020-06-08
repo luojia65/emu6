@@ -5,10 +5,10 @@ pub enum Usize {
 }
 
 impl Usize {
-    pub fn low_u32(&self) -> u32 {
+    pub fn low_u32(self) -> u32 {
         match self {
-            Usize::U32(a) => *a,
-            Usize::U64(a) => (*a & 0xFFFFFFFF) as u32,
+            Usize::U32(a) => a,
+            Usize::U64(a) => (a & 0xFFFFFFFF) as u32,
         }
     }
 }
