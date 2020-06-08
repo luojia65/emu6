@@ -55,7 +55,8 @@ impl<'a> MemorySet<'a> {
                 Section::Buffer(config, _) => config.range.clone(),
                 Section::Extension(extension) => extension.get_range(),
             };
-            if existing_range.contains(&start) || existing_range.contains(&end) {
+            if existing_range.contains(&start) || existing_range.contains(&end) 
+            || new_range.contains(&existing_range.start) || new_range.contains(&existing_range.end) {
                 return false;
             }
         }
